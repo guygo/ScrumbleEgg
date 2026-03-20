@@ -5,38 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scrumbleeggs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
   <script>
     tailwind.config = {
       theme: {
-        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
         extend: {
           colors: {
-            /* Linear-style neutrals */
-            n950: '#0a0a0c',
-            n900: '#111113',
-            n850: '#161618',
-            n800: '#1c1c1f',
-            n750: '#212124',
-            n700: '#2a2a2e',
-            n600: '#3a3a3f',
-            n500: '#515158',
-            n400: '#6e6e76',
-            n300: '#94949d',
-            n200: '#b8b8c0',
-            n100: '#dcdce0',
-            n50:  '#f0f0f2',
-            /* Accent */
-            acc:  '#5e6ad2',
-            accH: '#6b78e5',
-            /* Semantic */
-            pri_red:    '#eb5757',
-            pri_orange: '#e8945a',
-            pri_yellow: '#d4a843',
-            pri_gray:   '#515158',
+            n950:'#09090b', n900:'#111113', n850:'#161618', n800:'#1c1c1f',
+            n750:'#212124', n700:'#2a2a2e', n600:'#3a3a3f', n500:'#515158',
+            n400:'#6e6e76', n300:'#94949d', n200:'#b8b8c0', n100:'#dcdce0', n50:'#f0f0f2',
+            acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)',
+            g400:'#4ade80', g900:'rgba(74,222,128,0.12)',
+            r400:'#f87171', r900:'rgba(248,113,113,0.12)',
+            y400:'#fbbf24', y900:'rgba(251,191,36,0.12)',
+            o400:'#fb923c', o900:'rgba(251,146,60,0.12)',
           }
         }
       }
@@ -44,84 +30,107 @@
   </script>
 
   <style>
-    [x-cloak] { display: none !important; }
-    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
-    body { background: #0f0f11; color: #e2e2e5; font-family: 'Inter', sans-serif; }
+    [x-cloak]{display:none!important}
+    *{box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+    body{background:#0f0f11;color:#e2e2e5;font-family:'Inter',sans-serif;font-feature-settings:'cv02','cv03','cv04','cv11'}
 
     /* Scrollbars */
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 9px; }
+    ::-webkit-scrollbar{width:3px;height:3px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:99px}
+    ::-webkit-scrollbar-thumb:hover{background:#3a3a3f}
 
-    /* Drag states */
-    .dragging   { opacity: 0.25; }
-    .drop-over  { outline: 1.5px dashed #5e6ad2; background: rgba(94,106,210,0.05) !important; }
+    /* Card */
+    .ticket-card{transition:background 80ms,box-shadow 80ms,transform 80ms}
+    .ticket-card:hover{background:#212124;box-shadow:0 2px 12px rgba(0,0,0,.4);transform:translateY(-1px)}
+    .ticket-card:active{transform:translateY(0);box-shadow:none}
 
-    /* Card hover reveal */
-    .card-actions { opacity: 0; transition: opacity 0.1s; }
-    .ticket-card:hover .card-actions { opacity: 1; }
+    /* Priority left edge */
+    .pri-edge{width:2px;border-radius:1px;flex-shrink:0;align-self:stretch}
+    .pri-edge-critical{background:#f87171}
+    .pri-edge-high{background:#fb923c}
+    .pri-edge-medium{background:#fbbf24}
+    .pri-edge-low{background:#3a3a3f}
 
-    /* Subtle card entrance */
-    @keyframes fadeUp {
-      from { opacity:0; transform:translateY(4px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-    .card-in { animation: fadeUp 0.12s ease-out; }
+    /* Drag */
+    .dragging{opacity:.2;transform:scale(.97)}
+    .drop-over{box-shadow:inset 0 0 0 1.5px #5e6ad2;background:rgba(94,106,210,.06)!important}
+
+    /* Modal backdrop */
+    .backdrop{backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+
+    /* Slide-in panel */
+    @keyframes slideIn{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+    .panel-in{animation:slideIn .18s cubic-bezier(.16,1,.3,1)}
 
     /* Toast */
-    @keyframes toastIn  { from { opacity:0; transform:translateY(8px) scale(0.97); } to { opacity:1; transform:none; } }
-    @keyframes toastOut { to   { opacity:0; transform:translateY(4px); } }
+    @keyframes toastUp{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+    @keyframes toastDn{to{opacity:0;transform:translateY(6px)}}
+    .toast-in{animation:toastUp .18s ease-out forwards}
+    .toast-out{animation:toastDn .15s ease-in forwards}
 
-    /* Sidebar panel */
-    .detail-panel { transition: transform 0.2s cubic-bezier(0.16,1,0.3,1); }
+    /* Card entrance */
+    @keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .card-in{animation:fadeUp .12s ease-out}
 
-    /* Field label */
-    .field-label { font-size: 11px; font-weight: 500; color: #6e6e76; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    /* Filter input */
+    .filter-input{background:transparent;border:none;outline:none;color:#e2e2e5;font-size:12px;width:100%}
+    .filter-input::placeholder{color:#515158}
 
-    kbd {
-      font-family: inherit;
-      font-size: 10px;
-      background: #2a2a2e;
-      border: 1px solid #3a3a3f;
-      border-radius: 4px;
-      padding: 1px 5px;
-      color: #6e6e76;
-    }
+    /* Chip */
+    .chip{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:500;border:1px solid}
 
-    /* Linear-style select */
-    select { -webkit-appearance: none; appearance: none; }
+    /* Badge */
+    .badge{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:9999px;font-size:10px;font-weight:500}
 
-    /* Checkbox */
-    input[type=checkbox] { accent-color: #5e6ad2; }
+    /* kbd */
+    kbd{font-family:inherit;font-size:10px;background:#1c1c1f;border:1px solid #2a2a2e;border-radius:4px;padding:1px 5px;color:#515158}
+
+    /* Select arrow hidden */
+    select{-webkit-appearance:none;appearance:none}
+
+    /* Tooltip */
+    [title]{cursor:default}
+
+    /* Col scroll */
+    .col-scroll{flex:1;overflow-y:auto;overflow-x:hidden}
   </style>
 </head>
 
 <body class="h-screen flex flex-col overflow-hidden" @keydown.window="handleKey($event)">
 
-<!-- ═══════════  SIDEBAR (detail panel)  ═══════════ -->
-<div x-show="detailOpen" x-cloak class="fixed inset-0 z-50 flex justify-end" @keydown.escape.window="detailOpen=false">
-  <div class="absolute inset-0 bg-black/40" @click="detailOpen=false"></div>
-  <div class="detail-panel relative w-[520px] max-w-full h-full bg-n850 border-l border-n700
-              flex flex-col overflow-hidden shadow-2xl z-10">
+<!-- ══════════════════════════════════════════════
+     DETAIL SIDE PANEL
+══════════════════════════════════════════════ -->
+<div x-show="detailOpen" x-cloak class="fixed inset-0 z-50 flex justify-end"
+     @keydown.escape.window="detailOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/50" @click="detailOpen=false"></div>
 
-    <!-- Panel toolbar -->
-    <div class="flex items-center justify-between px-5 py-3 border-b border-n700 flex-shrink-0">
-      <div class="flex items-center gap-2">
-        <span class="font-mono text-xs text-acc font-medium" x-text="currentTicket?.key"></span>
-        <span class="text-n500 text-xs">·</span>
-        <span class="text-xs text-n300 capitalize" x-text="currentTicket?.status?.replace('_',' ')"></span>
+  <div class="panel-in relative w-[500px] max-w-full h-full bg-n850 border-l border-n700
+              flex flex-col shadow-2xl z-10">
+
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between px-5 h-11 border-b border-n700 flex-shrink-0 gap-3">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="font-mono text-xs font-semibold text-acc" x-text="currentTicket?.key"></span>
+        <span class="text-n700">·</span>
+        <div class="flex items-center gap-1" x-show="currentTicket?.status">
+          <span x-html="statusIcon(currentTicket?.status)"></span>
+          <span class="text-xs text-n400 capitalize" x-text="currentTicket?.status?.replace('_',' ')"></span>
+        </div>
       </div>
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-0.5 flex-shrink-0">
         <button @click="openEdit(currentTicket)"
-                class="px-2.5 py-1 text-xs text-n300 hover:text-n100 hover:bg-n700 rounded-md transition-colors">
+                class="px-2.5 py-1.5 text-xs text-n400 hover:text-n100 hover:bg-n700 rounded-md transition-colors font-medium">
           Edit
         </button>
-        <button @click="deleteTicket(currentTicket.key)"
-                class="px-2.5 py-1 text-xs text-n300 hover:text-pri_red hover:bg-pri_red/10 rounded-md transition-colors">
+        <button @click="deleteTicket(currentTicket?.key)"
+                class="px-2.5 py-1.5 text-xs text-n400 hover:text-r400 hover:bg-r900 rounded-md transition-colors font-medium">
           Delete
         </button>
         <div class="w-px h-4 bg-n700 mx-1"></div>
-        <button @click="detailOpen=false" class="p-1.5 text-n400 hover:text-n100 hover:bg-n700 rounded-md transition-colors">
+        <button @click="detailOpen=false"
+                class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -129,308 +138,311 @@
       </div>
     </div>
 
-    <!-- Panel body -->
+    <!-- Scrollable content -->
     <div class="flex-1 overflow-y-auto" x-show="currentTicket">
-      <div class="px-6 py-5 space-y-5">
+      <div class="px-6 py-5 space-y-4">
 
-        <!-- Title -->
-        <div>
-          <h2 class="text-[17px] font-semibold text-n50 leading-snug" x-text="currentTicket?.title"></h2>
+        <!-- Title + priority bar -->
+        <div class="flex gap-3">
+          <div class="mt-1 flex-shrink-0 flex flex-col items-center gap-1">
+            <span x-html="priorityIcon(currentTicket?.priority)"></span>
+          </div>
+          <h2 class="text-[16px] font-semibold text-n50 leading-snug" x-text="currentTicket?.title"></h2>
         </div>
 
-        <!-- Properties grid -->
-        <div class="grid grid-cols-2 gap-1 text-sm">
+        <!-- Property rows -->
+        <div class="rounded-xl border border-n700 divide-y divide-n700 overflow-hidden text-sm">
 
-          <!-- Status -->
-          <div class="col-span-2 flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 group cursor-pointer transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Status</span>
-            <select :value="currentTicket?.status"
-                    @change="moveTicket(currentTicket.key, $event.target.value)"
-                    class="bg-transparent text-n100 text-sm font-medium focus:outline-none cursor-pointer flex-1">
-              <option value="backlog">Backlog</option>
-              <option value="in_progress">In Progress</option>
-              <option value="review">Review</option>
-              <option value="done">Done</option>
-            </select>
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Status</span>
+            <div class="flex items-center gap-2">
+              <span x-html="statusIcon(currentTicket?.status)"></span>
+              <select :value="currentTicket?.status"
+                      @change="moveTicket(currentTicket.key, $event.target.value)"
+                      class="bg-transparent text-n100 text-sm font-medium focus:outline-none cursor-pointer">
+                <option value="backlog">Backlog</option>
+                <option value="in_progress">In Progress</option>
+                <option value="review">Review</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Priority -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Priority</span>
-            <div class="flex items-center gap-1.5">
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Priority</span>
+            <div class="flex items-center gap-2">
               <span x-html="priorityIcon(currentTicket?.priority)"></span>
-              <span class="text-sm text-n200 capitalize" x-text="currentTicket?.priority"></span>
+              <span class="text-n200 capitalize text-sm" x-text="currentTicket?.priority"></span>
             </div>
           </div>
 
-          <!-- Assignee -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Assignee</span>
-            <div class="flex items-center gap-1.5">
-              <span x-show="currentTicket?.assignee" x-html="avatar(currentTicket?.assignee)"></span>
-              <span class="text-sm text-n200" x-text="currentTicket?.assignee || '—'"></span>
-            </div>
-          </div>
-
-          <!-- Type -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Type</span>
-            <div class="flex items-center gap-1.5">
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Type</span>
+            <div class="flex items-center gap-2">
               <span x-html="typeIcon(currentTicket?.ticket_type)"></span>
-              <span class="text-sm text-n200 capitalize" x-text="currentTicket?.ticket_type"></span>
+              <span class="text-n200 capitalize text-sm" x-text="currentTicket?.ticket_type"></span>
             </div>
           </div>
 
-          <!-- Story Points -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Points</span>
-            <span class="text-sm text-n200 font-mono" x-text="currentTicket?.story_points ?? '—'"></span>
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.assignee">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Assignee</span>
+            <div class="flex items-center gap-2">
+              <span x-html="avatar(currentTicket?.assignee, 18)"></span>
+              <span class="text-n200 text-sm" x-text="currentTicket?.assignee"></span>
+            </div>
           </div>
 
-          <!-- Sprint -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Sprint</span>
-            <span class="text-sm text-n200" x-text="currentTicket?.sprint || '—'"></span>
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.sprint">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Sprint</span>
+            <span class="text-n200 text-sm" x-text="currentTicket?.sprint"></span>
           </div>
 
-          <!-- Role -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors" x-show="currentTicket?.role">
-            <span class="field-label w-24 flex-shrink-0">Role</span>
-            <span class="text-sm text-n200 capitalize" x-text="currentTicket?.role"></span>
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.story_points">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Points</span>
+            <span class="text-n200 text-sm font-mono" x-text="currentTicket?.story_points"></span>
           </div>
 
-          <!-- Created -->
-          <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-n750 transition-colors">
-            <span class="field-label w-24 flex-shrink-0">Created</span>
-            <span class="text-sm text-n400" x-text="relativeDate(currentTicket?.created_at)"></span>
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.role">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Role</span>
+            <span class="text-n200 text-sm capitalize" x-text="currentTicket?.role"></span>
           </div>
+
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Created</span>
+            <span class="text-n400 text-xs" x-text="relativeDate(currentTicket?.created_at)"></span>
+          </div>
+
         </div>
-
-        <!-- Divider -->
-        <div class="border-t border-n700"></div>
 
         <!-- Description -->
-        <div x-show="currentTicket?.description">
-          <p class="field-label mb-2">Description</p>
+        <div x-show="currentTicket?.description" class="space-y-1.5">
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Description</p>
           <p class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap" x-text="currentTicket?.description"></p>
         </div>
 
-        <!-- Acceptance Criteria -->
-        <div x-show="currentTicket?.acceptance_criteria">
-          <p class="field-label mb-2">Acceptance Criteria</p>
-          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap bg-n800 rounded-lg p-3 border-l-2 border-acc"
+        <!-- Acceptance criteria -->
+        <div x-show="currentTicket?.acceptance_criteria" class="space-y-1.5">
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Acceptance Criteria</p>
+          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap
+                      bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-acc"
                x-text="currentTicket?.acceptance_criteria"></div>
         </div>
 
-        <!-- Dev Checklist -->
-        <div x-show="currentTicket?.dev_checklist?.length">
-          <p class="field-label mb-2">Dev Checklist</p>
-          <div class="space-y-1">
+        <!-- Dev checklist -->
+        <div x-show="currentTicket?.dev_checklist?.length" class="space-y-1.5">
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Dev Checklist</p>
+          <div class="space-y-0.5">
             <template x-for="item in (currentTicket?.dev_checklist||[])" :key="item.item||item">
-              <div class="flex items-center gap-2.5 py-1.5">
-                <div :class="(item.done||item===true) ? 'bg-acc border-acc' : 'border-n600'"
-                     class="w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0">
-                  <svg x-show="item.done" class="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 12 12">
-                    <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-n800 transition-colors">
+                <div :class="item.done ? 'bg-acc border-acc' : 'border-n600'"
+                     class="w-3.5 h-3.5 rounded border-[1.5px] flex items-center justify-center flex-shrink-0">
+                  <svg x-show="item.done" class="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 12 12">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 6l3 3 5-5"/>
                   </svg>
                 </div>
-                <span :class="item.done ? 'line-through text-n500' : 'text-n200'"
+                <span :class="item.done ? 'line-through text-n600' : 'text-n200'"
                       class="text-[13px]" x-text="item.item || item"></span>
               </div>
             </template>
           </div>
         </div>
 
-        <!-- Test Plan -->
-        <div x-show="currentTicket?.test_plan">
-          <p class="field-label mb-2">Test Plan</p>
-          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap bg-n800 rounded-lg p-3 border-l-2 border-pri_yellow"
+        <!-- Test plan -->
+        <div x-show="currentTicket?.test_plan" class="space-y-1.5">
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Test Plan</p>
+          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap
+                      bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-y400"
                x-text="currentTicket?.test_plan"></div>
         </div>
 
-        <!-- Test Cases -->
-        <div x-show="currentTicket?.test_cases?.length">
-          <p class="field-label mb-2">Test Cases</p>
+        <!-- Test cases -->
+        <div x-show="currentTicket?.test_cases?.length" class="space-y-1.5">
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Test Cases</p>
           <div class="space-y-2">
             <template x-for="tc in (currentTicket?.test_cases||[])" :key="tc.name||tc">
-              <div class="bg-n800 rounded-lg p-3 border border-n700">
-                <div class="flex items-center justify-between mb-1.5" x-show="tc.name">
+              <div class="bg-n800 border border-n700 rounded-lg p-3">
+                <div class="flex items-center justify-between mb-1" x-show="tc.name">
                   <span class="text-[13px] font-medium text-n100" x-text="tc.name"></span>
-                  <span class="text-[10px] px-1.5 py-px rounded font-medium uppercase tracking-wide"
-                        :class="tc.status==='pass' ? 'bg-green-500/15 text-green-400' : tc.status==='fail' ? 'bg-pri_red/15 text-pri_red' : 'bg-n700 text-n400'"
+                  <span class="badge"
+                        :class="tc.status==='pass'?'bg-g900 border-g400/30 text-g400':tc.status==='fail'?'bg-r900 border-r400/30 text-r400':'bg-n700 border-n600 text-n400'"
                         x-text="tc.status||'pending'"></span>
                 </div>
-                <p x-show="tc.steps" class="text-[12px] text-n400 mb-0.5"><span class="text-n500">Steps: </span><span x-text="tc.steps"></span></p>
-                <p x-show="tc.expected" class="text-[12px] text-n400"><span class="text-n500">Expected: </span><span x-text="tc.expected"></span></p>
+                <p x-show="tc.steps" class="text-[11px] text-n500 mt-1"><span class="text-n600">Steps:</span> <span x-text="tc.steps"></span></p>
+                <p x-show="tc.expected" class="text-[11px] text-n500 mt-0.5"><span class="text-n600">Expected:</span> <span x-text="tc.expected"></span></p>
                 <p x-show="typeof tc==='string'" class="text-[13px] text-n200" x-text="tc"></p>
               </div>
             </template>
           </div>
         </div>
 
-        <!-- QA Notes -->
-        <div x-show="currentTicket?.qa_notes">
-          <p class="field-label mb-2">QA Notes</p>
-          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap bg-n800 rounded-lg p-3 border-l-2 border-pri_orange"
+        <!-- QA notes -->
+        <div x-show="currentTicket?.qa_notes" class="space-y-1.5">
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">QA Notes</p>
+          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap
+                      bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-o400"
                x-text="currentTicket?.qa_notes"></div>
         </div>
 
-        <!-- Bottom padding -->
-        <div class="h-4"></div>
+        <div class="h-6"></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════  CREATE / EDIT MODAL  ═══════════ -->
+<!-- ══════════════════════════════════════════════
+     CREATE / EDIT MODAL
+══════════════════════════════════════════════ -->
 <div x-show="formOpen" x-cloak
-     class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
+     class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]"
      @keydown.escape.window="formOpen=false">
-  <div class="absolute inset-0 bg-black/60" @click="formOpen=false"></div>
+  <div class="absolute inset-0 backdrop bg-black/60" @click="formOpen=false"></div>
 
-  <div class="relative bg-n850 border border-n700 rounded-xl shadow-2xl w-full max-w-[540px] max-h-[82vh]
-              overflow-y-auto z-10">
-    <div class="p-5">
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl
+              w-full max-w-[540px] max-h-[84vh] overflow-y-auto z-10">
+    <div class="px-5 pt-5 pb-4">
 
-      <!-- Modal header -->
+      <!-- Header -->
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-sm font-semibold text-n100" x-text="editKey ? 'Edit issue' : 'New issue'"></h2>
-        <button @click="formOpen=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+        <button @click="formOpen=false"
+                class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-4">
 
         <!-- Title -->
         <input type="text" x-model="form.title" x-ref="titleInput"
                placeholder="Issue title"
-               class="w-full bg-transparent text-n50 text-base font-medium placeholder-n600
-                      border-none focus:outline-none py-1" />
+               class="w-full bg-transparent text-n50 text-base font-semibold
+                      placeholder-n600 border-none focus:outline-none"/>
 
         <!-- Description -->
         <textarea x-model="form.description" rows="2"
                   placeholder="Add description…"
                   class="w-full bg-transparent text-n300 text-sm placeholder-n600
-                         border-none focus:outline-none resize-none"></textarea>
+                         border-none focus:outline-none resize-none leading-relaxed"></textarea>
 
-        <div class="border-t border-n700 pt-3"></div>
+        <div class="border-t border-n700"></div>
 
-        <!-- Properties row -->
-        <div class="flex flex-wrap gap-2">
-
-          <!-- Priority -->
-          <div class="relative">
-            <label class="field-label block mb-1">Priority</label>
-            <div class="flex gap-1">
-              <template x-for="p in ['critical','high','medium','low']" :key="p">
-                <button @click="form.priority=p"
-                        :class="form.priority===p ? 'bg-n700 ring-1 ring-n500' : 'hover:bg-n750'"
-                        class="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-n300 transition-colors">
-                  <span x-html="priorityIcon(p)"></span>
-                  <span class="capitalize" x-text="p"></span>
-                </button>
-              </template>
-            </div>
+        <!-- Priority picker -->
+        <div>
+          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider mb-2">Priority</p>
+          <div class="flex gap-1.5">
+            <template x-for="p in ['critical','high','medium','low']" :key="p">
+              <button @click="form.priority = p"
+                      :class="form.priority===p
+                        ? 'ring-1 ring-n400 bg-n700 text-n100'
+                        : 'text-n400 hover:bg-n750 hover:text-n200'"
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                <span x-html="priorityIcon(p)"></span>
+                <span class="capitalize" x-text="p"></span>
+              </button>
+            </template>
           </div>
-
         </div>
 
-        <!-- Second row -->
-        <div class="grid grid-cols-3 gap-3">
+        <!-- Grid fields -->
+        <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="field-label block">Type</label>
-            <select x-model="form.ticket_type"
-                    class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                           text-xs focus:outline-none focus:border-n500 mt-1">
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Type</label>
+            <select x-model="form.ticket_type" class="w-full bg-n800 border border-n700 text-n200 text-xs
+                                                       rounded-lg px-3 py-2 focus:outline-none focus:border-n500">
               <option value="task">Task</option>
               <option value="story">Story</option>
               <option value="bug">Bug</option>
             </select>
           </div>
           <div>
-            <label class="field-label block">Assignee</label>
-            <input type="text" x-model="form.assignee" placeholder="Name"
-                   class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                          text-xs focus:outline-none focus:border-n500 placeholder-n600 mt-1"/>
-          </div>
-          <div>
-            <label class="field-label block">Sprint</label>
-            <input type="text" x-model="form.sprint" placeholder="Sprint 1"
-                   class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                          text-xs focus:outline-none focus:border-n500 placeholder-n600 mt-1"/>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="field-label block">Points</label>
-            <input type="number" x-model.number="form.story_points" placeholder="—" min="0"
-                   class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                          text-xs focus:outline-none focus:border-n500 placeholder-n600 mt-1"/>
-          </div>
-          <div>
-            <label class="field-label block">Role</label>
-            <select x-model="form.role"
-                    class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                           text-xs focus:outline-none focus:border-n500 mt-1">
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Role</label>
+            <select x-model="form.role" class="w-full bg-n800 border border-n700 text-n200 text-xs
+                                                rounded-lg px-3 py-2 focus:outline-none focus:border-n500">
               <option value="">None</option>
               <option value="developer">Developer</option>
               <option value="tester">Tester</option>
             </select>
           </div>
+          <div>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Assignee</label>
+            <input type="text" x-model="form.assignee" placeholder="Name or handle"
+                   class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                          focus:outline-none focus:border-n500 placeholder-n600"/>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Sprint</label>
+            <input type="text" x-model="form.sprint" placeholder="e.g. Sprint 3"
+                   class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                          focus:outline-none focus:border-n500 placeholder-n600"/>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Story Points</label>
+            <input type="number" x-model.number="form.story_points" placeholder="—" min="0"
+                   class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                          focus:outline-none focus:border-n500 placeholder-n600"/>
+          </div>
         </div>
 
         <!-- Dev fields -->
-        <div x-show="form.role==='developer'" class="space-y-2 pt-1 border-t border-n700">
-          <p class="field-label text-acc">Dev Fields</p>
+        <div x-show="form.role==='developer'"
+             x-transition:enter="transition-all duration-150"
+             x-transition:enter-start="opacity-0 -translate-y-2"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             class="border-t border-n700 pt-3 space-y-3">
+          <p class="text-[11px] font-semibold text-acc uppercase tracking-wider">Developer</p>
           <div>
-            <label class="field-label block">Acceptance Criteria</label>
-            <textarea x-model="form.acceptance_criteria" rows="3"
-                      placeholder="Given… When… Then…"
-                      class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                             text-xs focus:outline-none focus:border-n500 placeholder-n600 resize-none mt-1"></textarea>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Acceptance Criteria</label>
+            <textarea x-model="form.acceptance_criteria" rows="3" placeholder="Given… When… Then…"
+                      class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                             focus:outline-none focus:border-n500 placeholder-n600 resize-none leading-relaxed"></textarea>
           </div>
         </div>
 
         <!-- Tester fields -->
-        <div x-show="form.role==='tester'" class="space-y-2 pt-1 border-t border-n700">
-          <p class="field-label text-pri_yellow">QA Fields</p>
+        <div x-show="form.role==='tester'"
+             x-transition:enter="transition-all duration-150"
+             x-transition:enter-start="opacity-0 -translate-y-2"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             class="border-t border-n700 pt-3 space-y-3">
+          <p class="text-[11px] font-semibold text-y400 uppercase tracking-wider">QA / Tester</p>
           <div>
-            <label class="field-label block">Test Plan</label>
-            <textarea x-model="form.test_plan" rows="3"
-                      placeholder="Scope, approach, risks…"
-                      class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                             text-xs focus:outline-none focus:border-n500 placeholder-n600 resize-none mt-1"></textarea>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Test Plan</label>
+            <textarea x-model="form.test_plan" rows="3" placeholder="Scope, approach, risks…"
+                      class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                             focus:outline-none focus:border-n500 placeholder-n600 resize-none leading-relaxed"></textarea>
           </div>
           <div>
-            <label class="field-label block">QA Notes</label>
-            <textarea x-model="form.qa_notes" rows="2"
-                      placeholder="Edge cases, blockers…"
-                      class="w-full bg-n800 border border-n700 text-n200 rounded-lg px-2.5 py-1.5
-                             text-xs focus:outline-none focus:border-n500 placeholder-n600 resize-none mt-1"></textarea>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">QA Notes</label>
+            <textarea x-model="form.qa_notes" rows="2" placeholder="Edge cases, blockers…"
+                      class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                             focus:outline-none focus:border-n500 placeholder-n600 resize-none leading-relaxed"></textarea>
           </div>
         </div>
 
         <!-- Error -->
-        <p x-show="formError" class="text-xs text-pri_red bg-pri_red/10 rounded-lg px-3 py-2" x-text="formError"></p>
+        <p x-show="formError" class="text-xs text-r400 bg-r900 border border-r400/20 rounded-lg px-3 py-2"
+           x-text="formError"></p>
 
-        <!-- Actions -->
+        <!-- Footer -->
         <div class="flex items-center justify-between pt-2 border-t border-n700">
-          <span class="text-xs text-n500"><kbd>Esc</kbd> to cancel</span>
+          <span class="text-[11px] text-n600"><kbd>Esc</kbd> to cancel</span>
           <div class="flex gap-2">
             <button @click="formOpen=false"
-                    class="px-3.5 py-1.5 text-xs text-n300 hover:text-n100 hover:bg-n700 rounded-lg transition-colors">
+                    class="px-3.5 py-1.5 text-xs font-medium text-n400 hover:text-n100 hover:bg-n700 rounded-lg transition-colors">
               Cancel
             </button>
-            <button @click="submitForm()"
-                    :disabled="formLoading"
-                    class="px-3.5 py-1.5 text-xs text-white bg-acc hover:bg-accH rounded-lg
-                           font-medium transition-colors disabled:opacity-50">
-              <span x-show="!formLoading" x-text="editKey ? 'Save changes' : 'Create issue'"></span>
-              <span x-show="formLoading">Saving…</span>
+            <button @click="submitForm()" :disabled="formLoading"
+                    class="px-4 py-1.5 text-xs font-semibold text-white bg-acc hover:bg-accH rounded-lg
+                           transition-colors disabled:opacity-40 flex items-center gap-1.5">
+              <span x-show="formLoading">
+                <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+              </span>
+              <span x-text="editKey ? 'Save changes' : 'Create issue'"></span>
             </button>
           </div>
         </div>
@@ -440,59 +452,102 @@
   </div>
 </div>
 
-<!-- ═══════════  TOAST STACK  ═══════════ -->
+<!-- ══════════════════════════════════════════════
+     TOASTS
+══════════════════════════════════════════════ -->
 <div class="fixed bottom-5 right-5 z-[60] flex flex-col gap-1.5 pointer-events-none">
   <template x-for="t in toasts" :key="t.id">
-    <div class="pointer-events-auto flex items-center gap-2.5 px-3.5 py-2 rounded-lg shadow-xl text-xs font-medium
-                border backdrop-blur-sm"
-         :class="t.type==='success'
-           ? 'bg-n800/90 border-n700 text-n100'
-           : 'bg-pri_red/10 border-pri_red/30 text-pri_red'"
-         style="animation: toastIn 0.2s ease-out forwards">
-      <span x-show="t.type==='success'" class="text-green-400">✓</span>
-      <span x-show="t.type==='error'" class="text-pri_red">✕</span>
+    <div class="pointer-events-auto flex items-center gap-2.5 px-3.5 py-2 rounded-xl
+                border text-xs font-medium shadow-2xl"
+         :class="{
+           'toast-in': !t.leaving,
+           'toast-out': t.leaving,
+           'bg-n800 border-n700 text-n100': t.type==='success',
+           'bg-r900 border-r400/25 text-r400': t.type==='error'
+         }">
+      <svg x-show="t.type==='success'" class="w-3.5 h-3.5 text-g400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+      </svg>
+      <svg x-show="t.type==='error'" class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
       <span x-text="t.message"></span>
     </div>
   </template>
 </div>
 
-<!-- ═══════════  TOP BAR  ═══════════ -->
-<header class="flex-shrink-0 h-11 bg-n900 border-b border-n800
-               flex items-center px-4 gap-3">
+<!-- ══════════════════════════════════════════════
+     TOP BAR
+══════════════════════════════════════════════ -->
+<header class="flex-shrink-0 h-11 bg-n900 border-b border-n800 flex items-center px-4 gap-4 z-30">
 
   <!-- Brand -->
-  <div class="flex items-center gap-2 min-w-[160px]">
-    <svg class="w-5 h-5 text-acc" viewBox="0 0 24 24" fill="currentColor">
-      <ellipse cx="12" cy="12" rx="8" ry="10" opacity="0.15"/>
-      <ellipse cx="12" cy="12" rx="8" ry="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
-      <path d="M8 10c.5-2 3.5-3 5-1.5M9 14c.5 2 3.5 2.5 5 1" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none">
+      <ellipse cx="10" cy="10" rx="7" ry="8.5" fill="#5e6ad2" opacity=".15"/>
+      <ellipse cx="10" cy="10" rx="7" ry="8.5" stroke="#5e6ad2" stroke-width="1.4"/>
+      <path d="M7 8.5c.4-1.5 2.8-2.2 4-1" stroke="#5e6ad2" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+      <path d="M7.5 12c.4 1.5 2.8 1.8 4 .5" stroke="#5e6ad2" stroke-width="1.1" fill="none" stroke-linecap="round"/>
     </svg>
     <span class="text-sm font-semibold text-n100 tracking-tight">Scrumbleeggs</span>
+    <div class="w-px h-4 bg-n700"></div>
+    <span class="text-xs text-n500 font-medium capitalize" x-text="view"></span>
   </div>
 
-  <!-- Search / JQL -->
-  <div class="flex-1 max-w-xl">
-    <div class="flex items-center gap-2 bg-n800 border border-n700 hover:border-n600
-                focus-within:border-n500 rounded-lg px-3 py-1.5 transition-colors">
-      <svg class="w-3.5 h-3.5 text-n500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <!-- JQL Filter bar -->
+  <div class="flex-1 max-w-lg">
+    <div class="relative flex items-center gap-2 h-7 px-3
+                bg-n800 border border-transparent hover:border-n700
+                focus-within:border-n600 focus-within:bg-n750
+                rounded-lg transition-colors duration-100">
+
+      <svg class="w-3.5 h-3.5 text-n600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
       </svg>
-      <input type="text"
+
+      <input class="filter-input flex-1" type="text"
              x-model="jqlRaw"
              @input.debounce.250ms="applyJQL()"
              @keydown.enter="applyJQL()"
-             @keydown.escape="clearJQL()"
-             @focus="showHint=true"
-             @blur="showHint=false"
-             placeholder="Filter: priority:high assignee:alice type:bug…"
-             class="flex-1 bg-transparent text-xs text-n100 placeholder-n500 focus:outline-none min-w-0" />
+             @keydown.escape.stop="clearJQL()"
+             placeholder='Filter: priority:high assignee:alice type:bug "login"' />
+
+      <!-- Hint pill -->
+      <button @click="showJQLRef = !showJQLRef"
+              class="text-[10px] text-n600 hover:text-n400 flex-shrink-0 font-medium transition-colors">
+        syntax
+      </button>
       <button x-show="jqlRaw" @click="clearJQL()"
-              class="text-n500 hover:text-n200 transition-colors flex-shrink-0">
+              class="text-n600 hover:text-n300 transition-colors flex-shrink-0">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
+    </div>
+
+    <!-- JQL syntax reference popover -->
+    <div x-show="showJQLRef" x-cloak @click.outside="showJQLRef=false"
+         class="absolute top-11 left-0 right-0 mx-auto max-w-lg bg-n800 border border-n700
+                rounded-xl shadow-2xl p-4 z-50 text-xs">
+      <div class="flex items-center justify-between mb-3">
+        <p class="font-semibold text-n100">Filter syntax</p>
+        <button @click="showJQLRef=false" class="text-n500 hover:text-n300">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-n400">
+        <div><kbd>priority:high</kbd> <span class="ml-1 text-n500">critical / high / medium / low</span></div>
+        <div><kbd>status:in_progress</kbd> <span class="ml-1 text-n500">backlog / in_progress / review / done</span></div>
+        <div><kbd>assignee:alice</kbd> <span class="ml-1 text-n500">partial name match</span></div>
+        <div><kbd>role:developer</kbd> <span class="ml-1 text-n500">or <kbd>role:tester</kbd></span></div>
+        <div><kbd>type:bug</kbd> <span class="ml-1 text-n500">task / story / bug</span></div>
+        <div><kbd>sprint:"Sprint 1"</kbd> <span class="ml-1 text-n500">quote spaces</span></div>
+        <div><kbd>pts:>3</kbd> <span class="ml-1 text-n500">&gt; &lt; &gt;= &lt;= or exact</span></div>
+        <div><kbd>"login page"</kbd> <span class="ml-1 text-n500">title search (≥2 chars)</span></div>
+      </div>
     </div>
   </div>
 
@@ -500,63 +555,58 @@
   <div class="flex-1"></div>
 
   <!-- Stats -->
-  <div class="hidden lg:flex items-center gap-4 text-xs text-n400">
+  <div class="hidden lg:flex items-center gap-4 text-[11px] text-n500">
     <div class="flex items-center gap-1.5">
-      <div class="w-1.5 h-1.5 rounded-full bg-n500"></div>
-      <span x-text="stats.backlog ?? 0"></span>
-      <span>backlog</span>
+      <span x-html="statusIcon('backlog')" class="opacity-60"></span>
+      <span x-text="stats.backlog ?? 0" class="text-n300 font-medium tabular-nums"></span>
     </div>
     <div class="flex items-center gap-1.5">
-      <div class="w-1.5 h-1.5 rounded-full bg-acc"></div>
-      <span x-text="stats.in_progress ?? 0"></span>
-      <span>in progress</span>
+      <span x-html="statusIcon('in_progress')"></span>
+      <span x-text="stats.in_progress ?? 0" class="text-n300 font-medium tabular-nums"></span>
     </div>
     <div class="flex items-center gap-1.5">
-      <div class="w-1.5 h-1.5 rounded-full" style="background:#4ade80"></div>
-      <span x-text="stats.done ?? 0"></span>
-      <span>done</span>
+      <span x-html="statusIcon('done')"></span>
+      <span x-text="stats.done ?? 0" class="text-n300 font-medium tabular-nums"></span>
     </div>
     <div class="w-px h-4 bg-n700"></div>
-    <div class="flex items-center gap-1.5">
-      <div class="w-16 bg-n700 rounded-full h-1 overflow-hidden">
-        <div class="h-1 rounded-full transition-all duration-700" style="background:#4ade80"
+    <div class="flex items-center gap-2">
+      <div class="w-20 h-1 bg-n700 rounded-full overflow-hidden">
+        <div class="h-1 bg-g400 rounded-full transition-all duration-700"
              :style="`width:${stats.completion_pct??0}%`"></div>
       </div>
-      <span x-text="`${stats.completion_pct??0}%`"></span>
+      <span class="text-n400 tabular-nums" x-text="`${stats.completion_pct??0}%`"></span>
     </div>
   </div>
 
   <!-- View toggle -->
-  <div class="flex items-center bg-n800 border border-n700 rounded-lg p-0.5 gap-0.5">
+  <div class="flex items-center bg-n800 border border-n700 rounded-lg p-0.5 flex-shrink-0">
     <button @click="switchView('board')"
-            :class="view==='board' ? 'bg-n700 text-n100' : 'text-n500 hover:text-n300'"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors">
-      <!-- Board icon: 4 squares -->
+            :class="view==='board' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-100">
       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16">
-        <rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
-        <rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
-        <rect x="1" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
-        <rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="9"   y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="1.5" y="9"   width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="9"   y="9"   width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
       </svg>
       Board
     </button>
     <button @click="switchView('list')"
-            :class="view==='list' ? 'bg-n700 text-n100' : 'text-n500 hover:text-n300'"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors">
-      <!-- List icon -->
+            :class="view==='list' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-100">
       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16">
-        <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="2.5" y1="4.5" x2="13.5" y2="4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="2.5" y1="8"   x2="13.5" y2="8"   stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="2.5" y1="11.5" x2="13.5" y2="11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
       </svg>
       List
     </button>
   </div>
 
-  <!-- New issue button -->
+  <!-- New issue -->
   <button @click="openCreate()"
-          class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs
-                 font-medium px-3 py-1.5 rounded-lg transition-colors">
+          class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
+                 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
     </svg>
@@ -564,209 +614,279 @@
   </button>
 </header>
 
-<!-- ═══════════  ACTIVE FILTER CHIPS  ═══════════ -->
-<div x-show="activeChips.length" x-cloak
-     class="flex-shrink-0 bg-n900 border-b border-n800 px-4 py-2 flex items-center gap-2">
-  <span class="text-[11px] text-n500">Filtered by</span>
+<!-- Active filter chips + unknown key warning -->
+<div x-show="activeChips.length || unknownKeys.length" x-cloak
+     class="flex-shrink-0 border-b border-n800 px-4 py-2 flex items-center gap-2 flex-wrap bg-n900/80">
+  <span class="text-[11px] text-n600">Filtered:</span>
+
+  <!-- Valid chips -->
   <template x-for="chip in activeChips" :key="chip.key">
-    <span class="inline-flex items-center gap-1 bg-acc/10 border border-acc/25 text-acc
-                 text-[11px] rounded-md pl-2 pr-1 py-0.5 font-medium">
-      <span class="text-n400" x-text="chip.key + ':'"></span>
+    <span class="chip bg-accL border-acc/25 text-acc">
+      <span class="text-n500 font-normal" x-text="chip.key + ':'"></span>
       <span x-text="chip.val"></span>
-      <button @click="removeChip(chip.key)" class="ml-0.5 hover:text-white transition-colors p-0.5">
+      <button @click="removeChip(chip.key)" class="ml-0.5 text-acc/60 hover:text-acc transition-colors">
         <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </span>
   </template>
-  <button @click="clearJQL()" class="text-[11px] text-n500 hover:text-n300 ml-1 transition-colors">
+
+  <!-- Unknown key warnings -->
+  <template x-for="uk in unknownKeys" :key="uk">
+    <span class="chip bg-y900 border-y400/25 text-y400 gap-1">
+      <svg class="w-2.5 h-2.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+      </svg>
+      Unknown: <span class="font-mono" x-text="uk"></span>
+    </span>
+  </template>
+
+  <!-- Title search chip -->
+  <span x-show="parsedJQL.title" class="chip bg-n700 border-n600 text-n300">
+    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+    </svg>
+    <span x-text='"&quot;" + parsedJQL.title + "&quot;"'></span>
+  </span>
+
+  <button @click="clearJQL()" class="text-[11px] text-n600 hover:text-r400 ml-1 transition-colors">
     Clear all
   </button>
 </div>
 
-<!-- ═══════════  BOARD VIEW  ═══════════ -->
-<main x-show="view==='board'" class="flex-1 overflow-x-auto overflow-y-hidden">
-  <div class="flex h-full">
+<!-- ══════════════════════════════════════════════
+     BOARD VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='board'" class="flex-1 flex overflow-x-auto overflow-y-hidden">
 
-    <template x-for="col in columns" :key="col.status">
+  <template x-for="col in columns" :key="col.status">
+    <div class="flex flex-col border-r border-n800 w-[272px] min-w-[272px] flex-shrink-0 h-full">
 
-      <!-- Column wrapper -->
-      <div class="flex flex-col border-r border-n800 min-w-[260px] w-[260px] flex-shrink-0 h-full">
-
-        <!-- Column header -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-n800 flex-shrink-0">
-          <div class="flex items-center gap-2">
-            <span x-html="col.icon"></span>
-            <span class="text-xs font-semibold text-n300 tracking-wide uppercase" x-text="col.label"></span>
-            <span class="text-xs text-n500 font-mono tabular-nums"
-                  x-text="(filteredBoard[col.status]||[]).length"></span>
-          </div>
-          <button @click="openCreateInCol(col.status)"
-                  class="text-n600 hover:text-n300 transition-colors p-0.5 rounded opacity-0 group-hover:opacity-100">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-          </button>
+      <!-- Column header -->
+      <div class="flex items-center justify-between px-4 py-3 flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <span x-html="col.icon"></span>
+          <span class="text-[11px] font-semibold text-n400 uppercase tracking-widest" x-text="col.label"></span>
+          <span class="text-[11px] text-n600 tabular-nums font-mono"
+                x-text="(filteredBoard[col.status]||[]).length"></span>
         </div>
-
-        <!-- Drop zone / ticket list -->
-        <div class="flex-1 overflow-y-auto py-1.5 px-2 transition-colors"
-             @dragover.prevent="dragOver($event)"
-             @dragleave.self="dragLeave($event)"
-             @drop.prevent="dropTicket($event, col.status)">
-
-          <template x-for="ticket in (filteredBoard[col.status]||[])" :key="ticket.key">
-            <div class="ticket-card group relative flex items-start gap-2.5 px-2.5 py-2.5 mx-0.5 my-0.5
-                        rounded-md cursor-pointer select-none
-                        hover:bg-n800/80 transition-colors duration-75 card-in"
-                 draggable="true"
-                 @dragstart="dragStart($event, ticket)"
-                 @dragend="dragEnd($event)"
-                 @click="openDetail(ticket)">
-
-              <!-- Priority icon -->
-              <div class="flex-shrink-0 mt-px" x-html="priorityIcon(ticket.priority)"></div>
-
-              <!-- Content -->
-              <div class="flex-1 min-w-0">
-                <p class="text-[13px] text-n100 leading-snug font-[450]
-                           group-hover:text-n50 transition-colors line-clamp-2"
-                   x-text="ticket.title"></p>
-
-                <!-- Meta row -->
-                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <!-- Ticket key -->
-                  <span class="font-mono text-[10px] text-n500" x-text="ticket.key"></span>
-
-                  <!-- Type icon -->
-                  <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
-
-                  <!-- Assignee avatar -->
-                  <span x-show="ticket.assignee" x-html="avatar(ticket.assignee)" class="flex-shrink-0"></span>
-
-                  <!-- Sprint -->
-                  <span x-show="ticket.sprint"
-                        class="text-[10px] text-n500 truncate max-w-[80px]"
-                        x-text="ticket.sprint"></span>
-
-                  <!-- Points -->
-                  <span x-show="ticket.story_points"
-                        class="ml-auto text-[10px] font-mono text-n500"
-                        x-text="ticket.story_points"></span>
-                </div>
-              </div>
-
-            </div>
-          </template>
-
-          <!-- Empty column -->
-          <div x-show="!(filteredBoard[col.status]||[]).length"
-               class="flex flex-col items-center justify-center py-16 opacity-30 select-none">
-            <svg class="w-8 h-8 text-n600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-            <span class="text-xs text-n600">No issues</span>
-          </div>
-
-        </div>
+        <!-- Story points sum -->
+        <span x-show="colPoints(col.status) > 0"
+              class="text-[10px] font-mono text-n600 bg-n800 border border-n700 rounded px-1.5 py-0.5"
+              x-text="colPoints(col.status) + 'p'">
+        </span>
       </div>
 
-    </template>
+      <!-- Tickets -->
+      <div class="col-scroll px-1.5 pb-2 transition-colors"
+           @dragover.prevent="dragOver($event)"
+           @dragleave.self="dragLeave($event)"
+           @drop.prevent="dropTicket($event, col.status)">
 
-    <!-- Right padding column -->
-    <div class="min-w-4 flex-shrink-0"></div>
-  </div>
+        <template x-for="ticket in (filteredBoard[col.status]||[])" :key="ticket.key">
+          <div class="ticket-card group relative flex gap-0 rounded-md mb-0.5 cursor-pointer card-in overflow-hidden"
+               draggable="true"
+               @dragstart="dragStart($event, ticket)"
+               @dragend="dragEnd($event)"
+               @click="openDetail(ticket)">
+
+            <!-- Priority left edge -->
+            <div class="pri-edge flex-shrink-0" :class="`pri-edge-${ticket.priority}`"></div>
+
+            <!-- Card body -->
+            <div class="flex-1 px-3 py-2.5 min-w-0">
+              <!-- Title -->
+              <p class="text-[13px] text-n100 leading-snug font-[450] line-clamp-2 mb-2"
+                 x-text="ticket.title"></p>
+
+              <!-- Meta row -->
+              <div class="flex items-center gap-1.5 flex-wrap">
+
+                <!-- Key -->
+                <span class="font-mono text-[10px] text-n600" x-text="ticket.key"></span>
+
+                <span class="text-n700">·</span>
+
+                <!-- Priority icon -->
+                <span x-html="priorityIcon(ticket.priority)" class="flex-shrink-0 opacity-80"></span>
+
+                <!-- Type badge -->
+                <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
+
+                <!-- Role indicator -->
+                <span x-show="ticket.role"
+                      class="text-[10px] text-n600 font-medium"
+                      x-text="ticket.role === 'developer' ? 'dev' : 'qa'"></span>
+
+                <!-- Spacer -->
+                <div class="flex-1"></div>
+
+                <!-- Assignee avatar -->
+                <span x-show="ticket.assignee"
+                      x-html="avatar(ticket.assignee, 16)"
+                      :title="ticket.assignee"></span>
+
+                <!-- Points -->
+                <span x-show="ticket.story_points"
+                      class="text-[10px] font-mono text-n600 bg-n750 rounded px-1"
+                      x-text="ticket.story_points + 'p'"></span>
+
+              </div>
+            </div>
+
+          </div>
+        </template>
+
+        <!-- Empty state -->
+        <div x-show="!(filteredBoard[col.status]||[]).length"
+             class="flex flex-col items-center justify-center py-14 gap-2 select-none">
+          <svg class="w-7 h-7 text-n700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <span class="text-[11px] text-n700">No issues</span>
+        </div>
+
+        <!-- Add issue button at bottom of column -->
+        <button @click="openCreate()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 mt-1 rounded-md text-n700
+                       hover:text-n400 hover:bg-n800 transition-colors text-xs group">
+          <svg class="w-3.5 h-3.5 group-hover:text-acc transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add issue
+        </button>
+
+      </div>
+    </div>
+  </template>
+
+  <div class="min-w-4 flex-shrink-0"></div>
 </main>
 
-<!-- ═══════════  LIST VIEW  ═══════════ -->
-<main x-show="view==='list'" x-cloak class="flex-1 overflow-auto">
-  <table class="w-full text-sm border-collapse">
-    <thead class="sticky top-0 bg-n900 z-10">
-      <tr class="border-b border-n800">
-        <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest w-24">Key</th>
-        <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest">Title</th>
-        <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest w-28">Status</th>
-        <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest w-24">Priority</th>
-        <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest w-28">Assignee</th>
-        <th class="text-left px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest w-24">Sprint</th>
-        <th class="text-right px-4 py-2.5 text-[11px] font-semibold text-n500 uppercase tracking-widest w-12">Pts</th>
-      </tr>
-    </thead>
-    <tbody>
-      <template x-for="ticket in listTickets" :key="ticket.key">
-        <tr class="border-b border-n800/60 hover:bg-n800/40 cursor-pointer transition-colors duration-75"
-            @click="openDetail(ticket)">
-          <td class="px-4 py-2.5">
-            <span class="font-mono text-[11px] text-n500" x-text="ticket.key"></span>
-          </td>
-          <td class="px-4 py-2.5">
-            <div class="flex items-center gap-2">
-              <span x-html="priorityIcon(ticket.priority)" class="flex-shrink-0"></span>
-              <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
-              <span class="text-[13px] text-n100 font-[450]" x-text="ticket.title"></span>
-            </div>
-          </td>
-          <td class="px-4 py-2.5">
-            <div class="flex items-center gap-1.5">
-              <span x-html="statusIcon(ticket.status)" class="flex-shrink-0"></span>
-              <span class="text-[12px] text-n300 capitalize" x-text="ticket.status.replace('_',' ')"></span>
-            </div>
-          </td>
-          <td class="px-4 py-2.5">
-            <div class="flex items-center gap-1.5">
-              <span x-html="priorityIcon(ticket.priority)" class="flex-shrink-0"></span>
-              <span class="text-[12px] text-n300 capitalize" x-text="ticket.priority"></span>
-            </div>
-          </td>
-          <td class="px-4 py-2.5">
-            <div class="flex items-center gap-1.5" x-show="ticket.assignee">
-              <span x-html="avatar(ticket.assignee)"></span>
-              <span class="text-[12px] text-n300" x-text="ticket.assignee"></span>
-            </div>
-            <span x-show="!ticket.assignee" class="text-n600 text-xs">—</span>
-          </td>
-          <td class="px-4 py-2.5 text-[12px] text-n400" x-text="ticket.sprint||'—'"></td>
-          <td class="px-4 py-2.5 text-right font-mono text-[12px] text-n400"
-              x-text="ticket.story_points||'—'"></td>
+<!-- ══════════════════════════════════════════════
+     LIST VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='list'" x-cloak class="flex-1 flex flex-col overflow-hidden">
+  <div class="flex-1 overflow-auto">
+    <table class="w-full border-collapse text-sm">
+      <thead class="sticky top-0 z-10 bg-n900">
+        <tr class="border-b border-n800">
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-24">Key</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest">Title</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-32">Status</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-28">Assignee</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-24">Sprint</th>
+          <th class="text-right px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-14">Pts</th>
         </tr>
-      </template>
-      <tr x-show="!listTickets.length">
-        <td colspan="7" class="py-24 text-center">
-          <div class="flex flex-col items-center gap-2 text-n600">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-                    d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
-            </svg>
-            <p class="text-sm">No issues found</p>
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <template x-for="ticket in listTickets" :key="ticket.key">
+          <tr class="border-b border-n800/50 hover:bg-n800/40 cursor-pointer transition-colors duration-75 group"
+              @click="openDetail(ticket)">
+            <td class="px-4 py-2.5">
+              <span class="font-mono text-[10px] text-n600 group-hover:text-n400 transition-colors"
+                    x-text="ticket.key"></span>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <div class="w-0.5 h-3.5 rounded-full flex-shrink-0" :class="`pri-edge-${ticket.priority}`" style="min-width:2px"></div>
+                <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
+                <span class="text-[13px] text-n100 font-[450]" x-text="ticket.title"></span>
+                <span x-show="ticket.role"
+                      class="flex-shrink-0 text-[10px] text-n600 font-medium"
+                      x-text="ticket.role==='developer'?'dev':'qa'"></span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-1.5">
+                <span x-html="statusIcon(ticket.status)"></span>
+                <span class="text-[12px] text-n400 capitalize" x-text="ticket.status.replace('_',' ')"></span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-1.5" x-show="ticket.assignee">
+                <span x-html="avatar(ticket.assignee, 16)"></span>
+                <span class="text-[12px] text-n300" x-text="ticket.assignee"></span>
+              </div>
+              <span x-show="!ticket.assignee" class="text-n700 text-xs">—</span>
+            </td>
+            <td class="px-4 py-2.5 text-[12px] text-n500" x-text="ticket.sprint||'—'"></td>
+            <td class="px-4 py-2.5 text-right font-mono text-[12px] text-n500"
+                x-text="ticket.story_points||'—'"></td>
+          </tr>
+        </template>
+
+        <tr x-show="!listTickets.length">
+          <td colspan="6" class="py-24">
+            <div class="flex flex-col items-center gap-3 text-n700">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                      d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+              </svg>
+              <p class="text-sm">No issues found</p>
+              <button x-show="jqlRaw" @click="clearJQL()"
+                      class="text-xs text-acc hover:underline">Clear filter</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
   <!-- Pagination -->
-  <div class="sticky bottom-0 bg-n900 border-t border-n800 px-4 py-2.5 flex items-center justify-between text-xs text-n500">
-    <span x-text="`${listTotal} issue${listTotal===1?'':'s'}`"></span>
-    <div class="flex items-center gap-2">
-      <button @click="listPage=Math.max(1,listPage-1); loadList()"
-              :disabled="listPage===1"
-              class="px-3 py-1 rounded-md bg-n800 hover:bg-n700 text-n300 disabled:opacity-30 transition-colors">
-        ← Prev
-      </button>
-      <span class="tabular-nums" x-text="`${listPage} / ${Math.max(1,Math.ceil(listTotal/listPageSize))}`"></span>
+  <div class="flex-shrink-0 bg-n900 border-t border-n800 px-5 py-2.5 flex items-center justify-between">
+    <span class="text-xs text-n600" x-text="`${listTotal} issue${listTotal===1?'':'s'}`"></span>
+    <div class="flex items-center gap-2 text-xs">
+      <button @click="listPage=Math.max(1,listPage-1); loadList()" :disabled="listPage===1"
+              class="px-3 py-1 rounded-md bg-n800 border border-n700 hover:bg-n750 text-n400
+                     disabled:opacity-30 transition-colors">← Prev</button>
+      <span class="text-n600 tabular-nums"
+            x-text="`${listPage} / ${Math.max(1,Math.ceil(listTotal/listPageSize))}`"></span>
       <button @click="listPage++; loadList()"
               :disabled="listPage >= Math.ceil(listTotal/listPageSize)"
-              class="px-3 py-1 rounded-md bg-n800 hover:bg-n700 text-n300 disabled:opacity-30 transition-colors">
-        Next →
-      </button>
+              class="px-3 py-1 rounded-md bg-n800 border border-n700 hover:bg-n750 text-n400
+                     disabled:opacity-30 transition-colors">Next →</button>
     </div>
   </div>
 </main>
 
-<!-- ═══════════  ALPINE APP  ═══════════ -->
+<!-- Keyboard shortcut footer -->
+<div class="fixed bottom-3 left-4 hidden xl:flex items-center gap-3 text-[10px] text-n700 pointer-events-none select-none z-20">
+  <span><kbd>N</kbd> new</span>
+  <span><kbd>B</kbd> board</span>
+  <span><kbd>L</kbd> list</span>
+  <span><kbd>/</kbd> filter</span>
+  <span><kbd>Esc</kbd> close</span>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     ALPINE APP
+══════════════════════════════════════════════ -->
 <script>
+// Valid filter keys — anything else triggers a warning chip
+const KNOWN_KEYS = new Set([
+  'priority','pri',
+  'assignee','a',
+  'role','r',
+  'sprint','s',
+  'type',
+  'status',
+  'pts','points',
+]);
+
+function svgStatusIcon(status) {
+  const s = {
+    backlog:     `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#515158" stroke-width="1.2" stroke-dasharray="2.4 1.5" stroke-dashoffset="0.5"/></svg>`,
+    in_progress: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#5e6ad2" stroke-width="1.2"/><path d="M6.5 6.5V2a4.5 4.5 0 014.5 4.5H6.5z" fill="#5e6ad2"/></svg>`,
+    review:      `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#fbbf24" stroke-width="1.2"/><circle cx="6.5" cy="6.5" r="2.2" fill="#fbbf24" fill-opacity=".5" stroke="#fbbf24" stroke-width="1"/></svg>`,
+    done:        `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" fill="#4ade80" fill-opacity=".12" stroke="#4ade80" stroke-width="1.2"/><path d="M4 6.5l2 2 3-3" stroke="#4ade80" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  };
+  return s[status] || s.backlog;
+}
+
 function app() {
   return {
     view: 'board',
@@ -776,51 +896,52 @@ function app() {
     currentTicket: null, detailOpen: false,
     formOpen: false, formLoading: false, formError: '', editKey: null,
     draggedTicket: null,
-    jqlRaw: '', parsedJQL: {}, showHint: false,
+    jqlRaw: '', parsedJQL: {}, unknownKeys: [],
+    showJQLRef: false,
     toasts: [],
 
     columns: [
-      { status:'backlog',     label:'Backlog',     icon: svgStatusIcon('backlog') },
+      { status:'backlog',     label:'Backlog',     icon: svgStatusIcon('backlog')     },
       { status:'in_progress', label:'In Progress', icon: svgStatusIcon('in_progress') },
-      { status:'review',      label:'Review',      icon: svgStatusIcon('review') },
-      { status:'done',        label:'Done',        icon: svgStatusIcon('done') },
+      { status:'review',      label:'Review',      icon: svgStatusIcon('review')      },
+      { status:'done',        label:'Done',        icon: svgStatusIcon('done')        },
     ],
 
     form: {
       title:'', ticket_type:'task', priority:'medium', assignee:'', sprint:'',
       story_points:null, role:'', description:'', acceptance_criteria:'',
-      dev_checklist:[], qa_notes:'', test_cases:[], test_plan:''
+      dev_checklist:[], qa_notes:[], test_cases:[], test_plan:'',
     },
 
-    // ── Computed ──────────────────────────────────────────────────
+    // ── Computed ──────────────────────────────────────────────────────
 
     get filteredBoard() {
       const out = {};
       for (const [status, tickets] of Object.entries(this.board)) {
-        out[status] = tickets.filter(t => this.matchJQL(t));
+        out[status] = tickets.filter(t => this.matchJQL(t, false));
       }
       return out;
     },
 
     get activeChips() {
+      const SKIP = new Set(['title','_unknown']);
       return Object.entries(this.parsedJQL)
-        .filter(([k]) => k !== 'title')
+        .filter(([k]) => !SKIP.has(k))
         .map(([k,v]) => ({ key:k, val:v }));
     },
 
-    // ── Init ─────────────────────────────────────────────────────
+    // ── Lifecycle ─────────────────────────────────────────────────────
 
     async init() {
       await Promise.all([this.loadBoard(), this.loadStats()]);
     },
 
-    // ── Data ─────────────────────────────────────────────────────
+    // ── Data ─────────────────────────────────────────────────────────
 
     async loadBoard() {
       const p = new URLSearchParams();
       if (this.parsedJQL.sprint) p.set('sprint', this.parsedJQL.sprint);
-      const res = await fetch('/api/board?' + p);
-      this.board = await res.json();
+      this.board = await (await fetch('/api/board?' + p)).json();
     },
 
     async loadList() {
@@ -831,9 +952,8 @@ function app() {
       if (this.parsedJQL.role)     p.set('role',        this.parsedJQL.role);
       if (this.parsedJQL.type)     p.set('ticket_type', this.parsedJQL.type);
       if (this.parsedJQL.status)   p.set('status',      this.parsedJQL.status);
-      const res = await fetch('/api/tickets?' + p);
-      const data = await res.json();
-      this.listTickets = data.tickets.filter(t => this.matchJQL(t));
+      const data = await (await fetch('/api/tickets?' + p)).json();
+      this.listTickets = data.tickets.filter(t => this.matchJQL(t, true));
       this.listTotal = data.total;
     },
 
@@ -841,82 +961,102 @@ function app() {
       this.stats = await (await fetch('/api/stats')).json();
     },
 
-    // ── JQL ──────────────────────────────────────────────────────
+    // ── JQL ───────────────────────────────────────────────────────────
 
     parseJQL(raw) {
       const out = {};
-      const re = /(\w+):(?:"([^"]+)"|(\S+))|(\S+)/g;
-      let titleParts = [], m;
+      const unknown = [];
+      const re = /(\w+):(?:"([^"]+)"|(\S+))|"([^"]+)"|(\S+)/g;
+      const titleParts = [];
+      let m;
+
       while ((m = re.exec(raw)) !== null) {
         if (m[1]) {
-          const key = m[1].toLowerCase(), val = (m[2]||m[3]).toLowerCase();
-          if (key==='priority'||key==='pri') out.priority = val;
-          else if (key==='assignee'||key==='a') out.assignee = val;
-          else if (key==='role'||key==='r')     out.role = val;
-          else if (key==='sprint'||key==='s')   out.sprint = m[2]||m[3];
-          else if (key==='type')                out.type = val;
-          else if (key==='status')              out.status = val;
-          else if (key==='pts'||key==='points') out.points = val;
-          else out[key] = val;
-        } else if (m[4]) {
-          titleParts.push(m[4].toLowerCase());
+          // key:value
+          const key = m[1].toLowerCase();
+          const val = (m[2] || m[3] || '').toLowerCase();
+          if (!KNOWN_KEYS.has(key)) {
+            unknown.push(`${m[1]}:${m[2]||m[3]}`);
+            continue;                            // ignore unknown — don't filter on it
+          }
+          if (key === 'priority' || key === 'pri')   out.priority = val;
+          else if (key === 'assignee' || key === 'a') out.assignee = val;
+          else if (key === 'role'     || key === 'r') out.role     = val;
+          else if (key === 'sprint'   || key === 's') out.sprint   = m[2] || m[3]; // preserve case
+          else if (key === 'type')                    out.type     = val;
+          else if (key === 'status')                  out.status   = val;
+          else if (key === 'pts' || key === 'points') out.points   = val;
+        } else {
+          // quoted phrase (m[4]) or bare word (m[5])
+          const word = m[4] || m[5] || '';
+          if (word.length >= 2) titleParts.push(word.toLowerCase());
+          // single-char bare words are silently ignored
         }
       }
+
       if (titleParts.length) out.title = titleParts.join(' ');
-      return out;
+      return { parsed: out, unknown };
     },
 
-    matchJQL(ticket) {
+    matchJQL(ticket, includeStatus) {
       const jql = this.parsedJQL;
       if (jql.title) {
-        const hay = ((ticket.title||'') + ' ' + (ticket.description||'')).toLowerCase();
+        const hay = (ticket.title || '').toLowerCase();
         if (!hay.includes(jql.title)) return false;
       }
-      if (jql.priority && ticket.priority !== jql.priority) return false;
-      if (jql.type     && ticket.ticket_type !== jql.type)  return false;
-      if (jql.status   && ticket.status !== jql.status)     return false;
+      if (jql.priority && ticket.priority !== jql.priority)           return false;
+      if (jql.type     && ticket.ticket_type !== jql.type)            return false;
+      if (includeStatus && jql.status && ticket.status !== jql.status) return false;
       if (jql.role) {
-        if (!ticket.role || !ticket.role.toLowerCase().startsWith(jql.role)) return false;
+        if (!ticket.role) return false;
+        if (!ticket.role.toLowerCase().startsWith(jql.role)) return false;
       }
       if (jql.assignee) {
-        if (!ticket.assignee || !ticket.assignee.toLowerCase().includes(jql.assignee)) return false;
+        if (!ticket.assignee) return false;
+        if (!ticket.assignee.toLowerCase().includes(jql.assignee)) return false;
       }
       if (jql.sprint) {
-        if (!ticket.sprint || !ticket.sprint.toLowerCase().includes(jql.sprint.toLowerCase())) return false;
+        if (!ticket.sprint) return false;
+        if (!ticket.sprint.toLowerCase().includes(jql.sprint.toLowerCase())) return false;
       }
       if (jql.points) {
-        const pts = ticket.story_points, v = jql.points;
+        const pts = ticket.story_points ?? 0, v = jql.points;
         if (v.startsWith('>='))      { if (!(pts >= +v.slice(2))) return false; }
         else if (v.startsWith('>'))  { if (!(pts >  +v.slice(1))) return false; }
         else if (v.startsWith('<=')) { if (!(pts <= +v.slice(2))) return false; }
         else if (v.startsWith('<'))  { if (!(pts <  +v.slice(1))) return false; }
-        else                         { if (pts !== +v) return false; }
+        else                         { if (pts !== +v)            return false; }
       }
       return true;
     },
 
     async applyJQL() {
-      this.parsedJQL = this.parseJQL(this.jqlRaw);
+      const { parsed, unknown } = this.parseJQL(this.jqlRaw);
+      this.parsedJQL = parsed;
+      this.unknownKeys = unknown;
       this.listPage = 1;
-      if (this.view==='board') await this.loadBoard();
+      if (this.view === 'board') await this.loadBoard();
       else await this.loadList();
     },
 
     clearJQL() {
-      this.jqlRaw = ''; this.parsedJQL = {}; this.listPage = 1;
-      if (this.view==='board') this.loadBoard(); else this.loadList();
+      this.jqlRaw = '';
+      this.parsedJQL = {};
+      this.unknownKeys = [];
+      this.listPage = 1;
+      if (this.view === 'board') this.loadBoard(); else this.loadList();
     },
 
     removeChip(key) {
       delete this.parsedJQL[key];
       this.jqlRaw = this.jqlToString(this.parsedJQL);
       this.listPage = 1;
-      if (this.view==='board') this.loadBoard(); else this.loadList();
+      if (this.view === 'board') this.loadBoard(); else this.loadList();
     },
 
     jqlToString(p) {
       const parts = [];
-      if (p.title)    parts.push(p.title);
+      if (p.title)    parts.push(p.title.includes(' ') ? `"${p.title}"` : p.title);
       if (p.priority) parts.push(`priority:${p.priority}`);
       if (p.role)     parts.push(`role:${p.role}`);
       if (p.assignee) parts.push(`assignee:${p.assignee}`);
@@ -927,14 +1067,18 @@ function app() {
       return parts.join(' ');
     },
 
-    // ── View ─────────────────────────────────────────────────────
+    // ── View ──────────────────────────────────────────────────────────
 
     async switchView(v) {
       this.view = v;
-      if (v==='list') await this.loadList(); else await this.loadBoard();
+      if (v === 'list') await this.loadList(); else await this.loadBoard();
     },
 
-    // ── Detail ───────────────────────────────────────────────────
+    colPoints(status) {
+      return (this.filteredBoard[status] || []).reduce((s,t) => s + (t.story_points||0), 0);
+    },
+
+    // ── Detail ────────────────────────────────────────────────────────
 
     async openDetail(ticket) {
       this.currentTicket = await (await fetch(`/api/tickets/${ticket.key}`)).json();
@@ -943,13 +1087,13 @@ function app() {
 
     async moveTicket(key, status) {
       const res = await fetch(`/api/tickets/${key}/move`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ status })
       });
       if (res.ok) {
         this.currentTicket = await res.json();
         await Promise.all([this.loadBoard(), this.loadStats()]);
-        if (this.view==='list') await this.loadList();
+        if (this.view === 'list') await this.loadList();
         this.showToast('Moved to ' + status.replace('_',' '), 'success');
       } else {
         this.showToast('Move failed', 'error');
@@ -959,22 +1103,17 @@ function app() {
     async deleteTicket(key) {
       if (!confirm(`Delete ${key}?`)) return;
       const res = await fetch(`/api/tickets/${key}`, { method:'DELETE' });
-      if (res.ok || res.status===204) {
+      if (res.ok || res.status === 204) {
         this.detailOpen = false;
         await Promise.all([this.loadBoard(), this.loadStats()]);
-        if (this.view==='list') await this.loadList();
+        if (this.view === 'list') await this.loadList();
         this.showToast(`${key} deleted`, 'success');
       }
     },
 
-    // ── Create / Edit ────────────────────────────────────────────
+    // ── Form ──────────────────────────────────────────────────────────
 
     openCreate() { this._openForm(null, {}); },
-
-    openCreateInCol(status) {
-      this._openForm(null, {});
-      // hint at status after form opens (form doesn't have a status field yet)
-    },
 
     openEdit(ticket) { this._openForm(ticket.key, ticket); },
 
@@ -982,19 +1121,19 @@ function app() {
       this.editKey = key;
       this.formError = '';
       this.form = {
-        title:               ticket.title || '',
-        ticket_type:         ticket.ticket_type || 'task',
-        priority:            ticket.priority || 'medium',
-        assignee:            ticket.assignee || '',
-        sprint:              ticket.sprint || '',
-        story_points:        ticket.story_points || null,
-        role:                ticket.role || '',
-        description:         ticket.description || '',
-        acceptance_criteria: ticket.acceptance_criteria || '',
-        dev_checklist:       ticket.dev_checklist || [],
-        qa_notes:            ticket.qa_notes || '',
-        test_cases:          ticket.test_cases || [],
-        test_plan:           ticket.test_plan || '',
+        title:               ticket.title               || '',
+        ticket_type:         ticket.ticket_type         || 'task',
+        priority:            ticket.priority             || 'medium',
+        assignee:            ticket.assignee             || '',
+        sprint:              ticket.sprint               || '',
+        story_points:        ticket.story_points         || null,
+        role:                ticket.role                 || '',
+        description:         ticket.description          || '',
+        acceptance_criteria: ticket.acceptance_criteria  || '',
+        dev_checklist:       ticket.dev_checklist        || [],
+        qa_notes:            ticket.qa_notes             || '',
+        test_cases:          ticket.test_cases           || [],
+        test_plan:           ticket.test_plan            || '',
       };
       this.detailOpen = false;
       this.formOpen = true;
@@ -1003,7 +1142,8 @@ function app() {
 
     async submitForm() {
       if (!this.form.title.trim()) { this.formError = 'Title is required.'; return; }
-      this.formLoading = true; this.formError = '';
+      this.formLoading = true;
+      this.formError = '';
       const body = { ...this.form };
       if (!body.story_points) body.story_points = null;
       if (!body.role) body.role = null;
@@ -1012,48 +1152,47 @@ function app() {
         const url  = this.editKey ? `/api/tickets/${this.editKey}` : '/api/tickets';
         const meth = this.editKey ? 'PATCH' : 'POST';
         const res  = await fetch(url, { method:meth, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-
-        if (res.ok || res.status===201) {
+        if (res.ok || res.status === 201) {
           const ticket = await res.json();
           this.formOpen = false;
           await Promise.all([this.loadBoard(), this.loadStats()]);
-          if (this.view==='list') await this.loadList();
+          if (this.view === 'list') await this.loadList();
           this.showToast(this.editKey ? `${ticket.key} updated` : `${ticket.key} created`, 'success');
           if (this.editKey) { this.currentTicket = ticket; this.detailOpen = true; }
         } else {
-          const err = await res.json().catch(()=>({}));
+          const err = await res.json().catch(() => ({}));
           this.formError = err.detail || 'Something went wrong.';
         }
       } finally { this.formLoading = false; }
     },
 
-    // ── Drag & Drop ──────────────────────────────────────────────
+    // ── Drag & Drop ───────────────────────────────────────────────────
 
     dragStart(event, ticket) {
       this.draggedTicket = ticket;
       event.currentTarget.classList.add('dragging');
       event.dataTransfer.effectAllowed = 'move';
     },
-
-    dragEnd(event) { event.currentTarget.classList.remove('dragging'); },
+    dragEnd(event)  { event.currentTarget.classList.remove('dragging'); },
     dragOver(event) { event.currentTarget.classList.add('drop-over'); },
-    dragLeave(event) { event.currentTarget.classList.remove('drop-over'); },
+    dragLeave(event){ event.currentTarget.classList.remove('drop-over'); },
 
     async dropTicket(event, status) {
       event.currentTarget.classList.remove('drop-over');
       if (!this.draggedTicket || this.draggedTicket.status === status) {
         this.draggedTicket = null; return;
       }
-      const ticket = this.draggedTicket; this.draggedTicket = null;
-      // Optimistic
+      const ticket = this.draggedTicket;
+      this.draggedTicket = null;
+      // Optimistic update
       const nb = {};
       for (const [s, ts] of Object.entries(this.board)) nb[s] = ts.filter(t => t.key !== ticket.key);
-      nb[status] = [{ ...ticket, status }, ...(nb[status]||[])];
+      nb[status] = [{ ...ticket, status }, ...(nb[status] || [])];
       this.board = nb;
       await this.moveTicket(ticket.key, status);
     },
 
-    // ── Keyboard ─────────────────────────────────────────────────
+    // ── Keyboard ──────────────────────────────────────────────────────
 
     handleKey(e) {
       if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
@@ -1062,110 +1201,87 @@ function app() {
         case 'n': this.openCreate(); break;
         case 'b': this.switchView('board'); break;
         case 'l': this.switchView('list'); break;
-        case '/': e.preventDefault(); document.querySelector('.jql-input, input[placeholder*="Filter"]')?.focus(); break;
-        case 'escape': this.formOpen=false; this.detailOpen=false; break;
+        case '/': e.preventDefault(); document.querySelector('.filter-input')?.focus(); break;
+        case 'escape': this.formOpen = false; this.detailOpen = false; this.showJQLRef = false; break;
       }
     },
 
-    // ── Toast ────────────────────────────────────────────────────
+    // ── Toast ─────────────────────────────────────────────────────────
 
-    showToast(message, type='success') {
+    showToast(message, type = 'success') {
       const id = Date.now();
-      this.toasts.push({ id, message, type });
-      setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3200);
+      this.toasts.push({ id, message, type, leaving: false });
+      setTimeout(() => {
+        const t = this.toasts.find(t => t.id === id);
+        if (t) t.leaving = true;
+        setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 160);
+      }, 3000);
     },
 
-    // ── Icon helpers ─────────────────────────────────────────────
+    // ── Icon helpers ──────────────────────────────────────────────────
 
     priorityIcon(p) {
-      const icons = {
-        critical: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <rect x="1" y="1" width="12" height="12" rx="2" fill="#eb5757" opacity="0.18"/>
-          <rect x="1" y="1" width="12" height="12" rx="2" stroke="#eb5757" stroke-width="1.2"/>
-          <path d="M7 4v3.5M7 9.5v.5" stroke="#eb5757" stroke-width="1.5" stroke-linecap="round"/>
+      return {
+        critical: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" title="Critical">
+          <rect x=".75" y=".75" width="11.5" height="11.5" rx="2" fill="#f87171" fill-opacity=".15" stroke="#f87171" stroke-width="1.15"/>
+          <path d="M6.5 3.5v3.5M6.5 9v.5" stroke="#f87171" stroke-width="1.4" stroke-linecap="round"/>
         </svg>`,
-        high: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M7 2.5l4.5 7.5H2.5L7 2.5z" fill="#e8945a" opacity="0.18" stroke="#e8945a" stroke-width="1.2" stroke-linejoin="round"/>
-          <path d="M7 5.5v2.5M7 9.3v.2" stroke="#e8945a" stroke-width="1.3" stroke-linecap="round"/>
+        high: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" title="High">
+          <path d="M6.5 1.8L12 10.8H1L6.5 1.8z" fill="#fb923c" fill-opacity=".15" stroke="#fb923c" stroke-width="1.1" stroke-linejoin="round"/>
+          <path d="M6.5 5v2.5M6.5 9v.4" stroke="#fb923c" stroke-width="1.3" stroke-linecap="round"/>
         </svg>`,
-        medium: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="5.5" stroke="#d4a843" stroke-width="1.2" fill="#d4a843" fill-opacity="0.15"/>
-          <path d="M4.5 7h5M4.5 5h5M4.5 9h5" stroke="#d4a843" stroke-width="1.1" stroke-linecap="round"/>
+        medium: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" title="Medium">
+          <circle cx="6.5" cy="6.5" r="5.25" fill="#fbbf24" fill-opacity=".12" stroke="#fbbf24" stroke-width="1.1"/>
+          <path d="M4.5 6.5h4M4.5 5h4M4.5 8h4" stroke="#fbbf24" stroke-width="1.1" stroke-linecap="round"/>
         </svg>`,
-        low: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="5.5" stroke="#515158" stroke-width="1.2" fill="#515158" fill-opacity="0.15"/>
-          <path d="M5 6l2 2 2-2" stroke="#515158" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        low: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" title="Low">
+          <circle cx="6.5" cy="6.5" r="5.25" fill="#3a3a3f" fill-opacity=".5" stroke="#515158" stroke-width="1.1"/>
+          <path d="M4.5 5.8l2 2 2-2" stroke="#515158" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`,
-      };
-      return icons[p] || icons.medium;
+      }[p] ?? '';
     },
 
     typeIcon(type) {
-      const icons = {
-        bug: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-          <circle cx="6.5" cy="6.5" r="5.5" fill="#eb5757" fill-opacity="0.15" stroke="#eb5757" stroke-width="1.1"/>
-          <path d="M4.5 5.5c0-1.1.9-2 2-2s2 .9 2 2v2c0 1.1-.9 2-2 2s-2-.9-2-2v-2z" fill="#eb5757" opacity="0.5"/>
+      return {
+        bug: `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" title="Bug">
+          <circle cx="6" cy="6" r="4.75" fill="#f87171" fill-opacity=".12" stroke="#f87171" stroke-width="1.1"/>
+          <circle cx="6" cy="6" r="2" fill="#f87171" fill-opacity=".4"/>
         </svg>`,
-        story: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-          <rect x="1" y="1" width="11" height="11" rx="2" fill="#5e6ad2" fill-opacity="0.15" stroke="#5e6ad2" stroke-width="1.1"/>
-          <path d="M3.5 4.5h6M3.5 6.5h6M3.5 8.5h4" stroke="#5e6ad2" stroke-width="1.1" stroke-linecap="round"/>
+        story: `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" title="Story">
+          <rect x=".75" y=".75" width="10.5" height="10.5" rx="1.5" fill="#5e6ad2" fill-opacity=".12" stroke="#5e6ad2" stroke-width="1.1"/>
+          <path d="M3 4h6M3 6h6M3 8h4" stroke="#5e6ad2" stroke-width="1" stroke-linecap="round"/>
         </svg>`,
-        task: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-          <rect x="1" y="1" width="11" height="11" rx="2" fill="none" stroke="#515158" stroke-width="1.1"/>
-          <path d="M4 6.5l2 2 3.5-3.5" stroke="#515158" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        task: `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" title="Task">
+          <rect x=".75" y=".75" width="10.5" height="10.5" rx="1.5" stroke="#515158" stroke-width="1.1"/>
+          <path d="M3.5 6l2 2 3-3" stroke="#515158" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`,
-      };
-      return icons[type] || icons.task;
+      }[type] ?? '';
     },
 
-    statusIcon(status) {
-      return svgStatusIcon(status);
-    },
+    statusIcon: svgStatusIcon,
 
-    avatar(name) {
+    avatar(name, size = 16) {
       if (!name) return '';
-      const initials = name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-      const colors = ['#5e6ad2','#e8945a','#d4a843','#4ade80','#eb5757','#a78bfa'];
-      const idx = name.charCodeAt(0) % colors.length;
-      const c = colors[idx];
-      return `<span style="background:${c}22;color:${c};border:1px solid ${c}44"
-        class="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold flex-shrink-0"
+      const initials = name.trim().split(/\s+/).map(n => n[0]).join('').slice(0,2).toUpperCase();
+      const palette = ['#5e6ad2','#fb923c','#fbbf24','#4ade80','#f87171','#a78bfa','#22d3ee'];
+      const color = palette[name.charCodeAt(0) % palette.length];
+      const s = size;
+      const fs = Math.round(s * 0.46);
+      return `<span style="width:${s}px;height:${s}px;background:${color}18;color:${color};border:1px solid ${color}30;font-size:${fs}px;line-height:1"
+        class="inline-flex items-center justify-center rounded-full font-semibold flex-shrink-0 select-none"
         title="${name}">${initials}</span>`;
     },
 
     relativeDate(iso) {
       if (!iso) return '—';
-      const d = new Date(iso), now = new Date();
-      const diff = Math.floor((now - d) / 86400000);
+      const diff = Math.floor((Date.now() - new Date(iso)) / 86400000);
       if (diff === 0) return 'today';
       if (diff === 1) return 'yesterday';
       if (diff <  7)  return `${diff}d ago`;
       if (diff < 30)  return `${Math.floor(diff/7)}w ago`;
-      return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
+      return new Date(iso).toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
     },
-  }
-}
-
-// Status icons (used before Alpine init too)
-function svgStatusIcon(status) {
-  const icons = {
-    backlog: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="5.5" stroke="#515158" stroke-width="1.2" stroke-dasharray="2.5 1.5"/>
-    </svg>`,
-    in_progress: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="5.5" stroke="#5e6ad2" stroke-width="1.2"/>
-      <path d="M7 7V2a5 5 0 015 5H7z" fill="#5e6ad2"/>
-    </svg>`,
-    review: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="5.5" stroke="#d4a843" stroke-width="1.2"/>
-      <circle cx="7" cy="7" r="2.5" fill="#d4a843" fill-opacity="0.5" stroke="#d4a843" stroke-width="1"/>
-    </svg>`,
-    done: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="5.5" fill="#4ade80" fill-opacity="0.15" stroke="#4ade80" stroke-width="1.2"/>
-      <path d="M4.5 7l2 2 3-3" stroke="#4ade80" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`,
   };
-  return icons[status] || icons.backlog;
 }
 </script>
 </body>
