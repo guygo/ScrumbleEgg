@@ -1,0 +1,1 @@
+"""Scrumbleeggs web application."""

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Test / coverage
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Env
+.env
+*.db
+
+# Generated exports
+scrumbleeggs_export_*.json
+sprint_report_*.md
+
+# OS
+.DS_Store
