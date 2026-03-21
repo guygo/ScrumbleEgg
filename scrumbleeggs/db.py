@@ -12,7 +12,9 @@ from typing import Generator
 
 from sqlalchemy import (
     Column,
+    Date,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     JSON,
@@ -20,6 +22,7 @@ from sqlalchemy import (
     Text,
     create_engine,
     event,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -76,16 +79,50 @@ class Base(DeclarativeBase):
     """SQLAlchemy declarative base."""
 
 
+class ProjectStatus(str, enum.Enum):
+    """Project lifecycle state."""
+
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+
+
+class Project(Base):
+    """A named container grouping related tickets."""
+
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    slug = Column(String(60), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    color = Column(String(20), default="#5e6ad2")
+    status = Column(String(20), nullable=False, default=ProjectStatus.ACTIVE)
+    created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "description": self.description,
+            "color": self.color,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class Sprint(Base):
     """Represents a scrum sprint container."""
 
     __tablename__ = "sprints"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(200), nullable=False, unique=True, index=True)
+    name = Column(String(128), nullable=False, unique=True, index=True)
     goal = Column(Text, nullable=True)
-    start_date = Column(DateTime, nullable=True)
-    end_date = Column(DateTime, nullable=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    status = Column(String(32), nullable=False, default="active")
     is_active = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
 
@@ -101,7 +138,43 @@ class Sprint(Base):
             "goal": self.goal,
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "end_date": self.end_date.isoformat() if self.end_date else None,
+            "status": self.status or "active",
             "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class FieldType(str, enum.Enum):
+    """Data type of a custom field."""
+    TEXT = "text"
+    NUMBER = "number"
+    SELECT = "select"
+    CHECKBOX = "checkbox"
+
+
+class CustomFieldDef(Base):
+    """Admin-defined custom field definition."""
+
+    __tablename__ = "custom_field_defs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    key = Column(String(60), unique=True, nullable=False, index=True)
+    field_type = Column(String(20), nullable=False, default=FieldType.TEXT)
+    options = Column(JSON, nullable=True)   # list[str] for select type
+    required = Column(Integer, default=0)   # 0=false, 1=true
+    position = Column(Integer, default=0)   # display order
+    created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "key": self.key,
+            "field_type": self.field_type,
+            "options": self.options,
+            "required": bool(self.required),
+            "position": self.position,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -122,6 +195,7 @@ class Ticket(Base):
     priority = Column(String(20), nullable=False, default=Priority.MEDIUM, index=True)
     assignee = Column(String(200), nullable=True, index=True)
     sprint = Column(String(200), nullable=True, index=True)
+    project = Column(String(200), nullable=True, index=True)
     story_points = Column(Integer, nullable=True)
     role = Column(String(20), nullable=True)
 
@@ -133,6 +207,12 @@ class Ticket(Base):
     qa_notes = Column(Text, nullable=True)
     test_cases = Column(JSON, nullable=True)  # list[{name, steps, expected, status}]
     test_plan = Column(Text, nullable=True)
+
+    # Admin custom fields data
+    custom_data = Column(JSON, nullable=True)  # dict[str, Any]
+
+    # Subtask support
+    parent_key = Column(String(32), ForeignKey("tickets.key"), nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
     updated_at = Column(DateTime, default=lambda: datetime.now(_UTC), onupdate=lambda: datetime.now(_UTC))
@@ -158,6 +238,7 @@ class Ticket(Base):
             "priority": self.priority,
             "assignee": self.assignee,
             "sprint": self.sprint,
+            "project": self.project,
             "story_points": self.story_points,
             "role": self.role,
             "acceptance_criteria": self.acceptance_criteria,
@@ -165,9 +246,117 @@ class Ticket(Base):
             "qa_notes": self.qa_notes,
             "test_cases": self.test_cases,
             "test_plan": self.test_plan,
+            "custom_data": self.custom_data,
+            "parent_key": self.parent_key,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class TicketComment(Base):
+    __tablename__ = "ticket_comments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_key = Column(String(32), ForeignKey("tickets.key"), nullable=False)
+    author = Column(String(128), nullable=False, default="anonymous")
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "ticket_key": self.ticket_key,
+            "author": self.author,
+            "body": self.body,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class TicketRelation(Base):
+    __tablename__ = "ticket_relations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    from_key = Column(String(32), nullable=False)
+    to_key = Column(String(32), nullable=False)
+    relation_type = Column(String(32), nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "from_key": self.from_key,
+            "to_key": self.to_key,
+            "relation_type": self.relation_type,
+        }
+
+
+class TimeEntry(Base):
+    __tablename__ = "time_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_key = Column(String(32), nullable=False)
+    author = Column(String(128), default="anonymous")
+    minutes = Column(Integer, nullable=False)
+    note = Column(Text, nullable=True)
+    logged_at = Column(DateTime, default=lambda: datetime.now(_UTC))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "ticket_key": self.ticket_key,
+            "author": self.author,
+            "minutes": self.minutes,
+            "note": self.note,
+            "logged_at": self.logged_at.isoformat() if self.logged_at else None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Auth models
+# ---------------------------------------------------------------------------
+
+
+class UserModel(Base):
+    """Registered user account with bcrypt-hashed credentials."""
+
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True)
+    username = Column(String(32), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(16), nullable=False, default="developer")
+    is_active = Column(Integer, nullable=False, default=1)  # 1=true, 0=false
+    created_at = Column(DateTime, nullable=False)
+    last_login = Column(DateTime, nullable=True)
+
+
+class SessionModel(Base):
+    """Server-side session record tied to a UserModel."""
+
+    __tablename__ = "sessions"
+
+    token = Column(String(64), primary_key=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True)
+
+
+class LoginAttemptModel(Base):
+    """Audit log of login attempts for rate-limiting."""
+
+    __tablename__ = "login_attempts"
+
+    id = Column(String(36), primary_key=True)
+    username = Column(String(32), nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True)
+    attempted_at = Column(DateTime, nullable=False, index=True)
+    success = Column(Integer, nullable=False, default=0)  # 1=true, 0=false
 
 
 # ---------------------------------------------------------------------------
@@ -176,11 +365,15 @@ class Ticket(Base):
 
 
 def _on_connect(dbapi_conn, _connection_record) -> None:
-    """Configure SQLite for multi-user WAL mode on each new connection."""
+    """Configure SQLite for performance and multi-user WAL mode."""
     dbapi_conn.execute("PRAGMA journal_mode=WAL")
     dbapi_conn.execute("PRAGMA busy_timeout=5000")
-    dbapi_conn.execute("PRAGMA synchronous=NORMAL")
+    dbapi_conn.execute("PRAGMA synchronous=NORMAL")       # safe with WAL, faster than FULL
     dbapi_conn.execute("PRAGMA foreign_keys=ON")
+    dbapi_conn.execute("PRAGMA cache_size=-64000")         # 64 MB page cache (negative = KB)
+    dbapi_conn.execute("PRAGMA mmap_size=268435456")       # 256 MB memory-mapped I/O
+    dbapi_conn.execute("PRAGMA temp_store=MEMORY")         # temp tables in RAM
+    dbapi_conn.execute("PRAGMA wal_autocheckpoint=1000")   # checkpoint every 1000 pages
 
 
 def create_engine_from_url(db_url: str):
@@ -228,9 +421,43 @@ class Database:
         self._SessionFactory = sessionmaker(self.engine, expire_on_commit=False)
 
     def create_tables(self) -> None:
-        """Create all tables if they do not already exist."""
+        """Create all tables if they do not already exist, then run migrations."""
         Base.metadata.create_all(self.engine)
+        self._migrate()
         logger.info("Database tables ensured.")
+
+    def _migrate(self) -> None:
+        """Apply incremental schema changes to existing databases."""
+        migrations = [
+            "ALTER TABLE tickets ADD COLUMN project TEXT",
+            "ALTER TABLE tickets ADD COLUMN custom_data TEXT",
+            "ALTER TABLE sprints ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+        ]
+        with self.engine.connect() as conn:
+            for sql in migrations:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                except Exception:
+                    pass  # Column already exists — safe to ignore
+
+            try:
+                conn.execute(text(
+                    "ALTER TABLE tickets ADD COLUMN parent_key VARCHAR(32) REFERENCES tickets(key)"
+                ))
+                conn.commit()
+            except Exception:
+                pass
+
+            # Auth migrations
+            for auth_sql in [
+                "ALTER TABLE tickets ADD COLUMN created_by VARCHAR(36)",
+            ]:
+                try:
+                    conn.execute(text(auth_sql))
+                    conn.commit()
+                except Exception:
+                    pass
 
     @contextmanager
     def session(self) -> Generator[Session, None, None]:

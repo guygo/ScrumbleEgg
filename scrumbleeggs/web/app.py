@@ -2,20 +2,22 @@
 import csv
 import io
 import logging
+import os
 import re
 import time
 from datetime import date as date_type
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from ..auth import AuthError, AuthService, RateLimitError, User
 from ..config import get_config
 from ..db import (
     CustomFieldDef, Database, FieldType, Priority, Project, ProjectStatus, Role,
@@ -28,18 +30,81 @@ logger = logging.getLogger(__name__)
 
 _here = Path(__file__).parent
 
+# ---------------------------------------------------------------------------
+# Auth bypass for automated testing (never enable in production)
+# ---------------------------------------------------------------------------
+
+_AUTH_DISABLED = os.getenv("SBE_AUTH_DISABLED", "").lower() in ("1", "true", "yes")
+_SESSION_COOKIE = "sbe_session"
+
+# Public paths that never require authentication
+_PUBLIC_PATHS = frozenset({"/login", "/auth/login", "/auth/logout", "/favicon.ico"})
+_PUBLIC_PREFIXES = ("/static/",)
+
+# Fake admin user injected when auth is disabled (testing only)
+_ANON_ADMIN: Optional["User"] = None  # resolved lazily after User is imported
+
 app = FastAPI(title="Scrumbleeggs", version="0.1.0")
-app.add_middleware(GZipMiddleware, minimum_size=512)  # compress responses > 512 bytes
+app.add_middleware(GZipMiddleware, minimum_size=512)
+
+
+# ---------------------------------------------------------------------------
+# Auth middleware — runs before every request
+# ---------------------------------------------------------------------------
 
 
 @app.middleware("http")
-async def add_process_time_header(request, call_next):
+async def auth_middleware(request: Request, call_next):
+    """Enforce session authentication on all non-public routes.
+
+    Sets ``request.state.user`` (User | None) for downstream handlers.
+    Redirects unauthenticated page requests to /login and returns 401 for API calls.
+    """
+    path = request.url.path
+
+    # Inject a fake admin when auth is globally disabled (CI / testing only)
+    if _AUTH_DISABLED:
+        from datetime import datetime, timezone
+        request.state.user = User(
+            id="00000000-0000-0000-0000-000000000000",
+            username="ci-admin",
+            email=None,
+            role="admin",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        return await call_next(request)
+
+    # Allow public routes through unconditionally
+    is_public = (
+        path in _PUBLIC_PATHS
+        or any(path.startswith(p) for p in _PUBLIC_PREFIXES)
+    )
+
+    if is_public:
+        request.state.user = None
+        return await call_next(request)
+
+    token = request.cookies.get(_SESSION_COOKIE)
+    user = _auth.get_session_user(token or "")
+    request.state.user = user
+
+    if user is None:
+        # API callers get 401 JSON; browser requests get redirected to /login
+        if path.startswith("/api/"):
+            return JSONResponse({"detail": "Authentication required."}, status_code=401)
+        return RedirectResponse(url="/login", status_code=302)
+
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
     """Add X-Process-Time header to every response (milliseconds)."""
     start = time.perf_counter()
     response = await call_next(request)
     elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
     response.headers["X-Process-Time"] = f"{elapsed_ms}ms"
-    # Skip recording static assets and the perf endpoints themselves
     path = request.url.path
     if not path.startswith("/static") and path != "/api/perf/timeseries":
         _metrics.record(path, response.status_code, elapsed_ms)
@@ -57,11 +122,57 @@ _config = get_config()
 _db = Database(_config.db_url)
 _db.create_tables()
 _svc = TicketService(_db, prefix=_config.project_prefix)
+_auth = AuthService(_db)
+_auth.bootstrap_admin()          # no-op if users already exist
 _metrics = MetricsCollector(window=60)
 _stats_cache: dict = {}
 _board_cache: dict = {}
-_STATS_TTL = 5.0   # seconds
-_BOARD_TTL = 1.0   # seconds — collapses concurrent board reads into 1 DB query
+_STATS_TTL = 5.0
+_BOARD_TTL = 1.0
+
+
+# ---------------------------------------------------------------------------
+# Auth dependencies
+# ---------------------------------------------------------------------------
+
+
+def get_current_user(request: Request) -> User:
+    """FastAPI dependency — return the authenticated User or raise 401.
+
+    Args:
+        request: Incoming HTTP request (populated by auth middleware).
+
+    Returns:
+        Authenticated User object.
+
+    Raises:
+        HTTPException: 401 if no valid session is present.
+    """
+    user: Optional[User] = getattr(request.state, "user", None)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+    return user
+
+
+def require_admin(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    """FastAPI dependency — require admin role.
+
+    Args:
+        current_user: Resolved by ``get_current_user``.
+
+    Returns:
+        The admin User.
+
+    Raises:
+        HTTPException: 403 if the user is not an admin.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return current_user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+AdminUser = Annotated[User, Depends(require_admin)]
 
 
 def _slug(name: str) -> str:
@@ -181,6 +292,159 @@ class SubtaskCreateRequest(BaseModel):
 
 class SetParentRequest(BaseModel):
     parent_key: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserCreateRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "developer"
+    email: Optional[str] = None
+
+
+class UserUpdateRequest(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Render the login form. Redirect to / if already authenticated."""
+    token = request.cookies.get(_SESSION_COOKIE)
+    if token and _auth.get_session_user(token):
+        return RedirectResponse(url="/", status_code=302)
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+
+
+@app.post("/auth/login")
+async def auth_login(body: LoginRequest, request: Request, response: Response):
+    """Authenticate a user and set a session cookie.
+
+    Args:
+        body: JSON body with ``username`` and ``password``.
+        request: HTTP request (provides remote IP for audit).
+        response: FastAPI response (used to set cookie).
+
+    Returns:
+        JSON with user data and redirect URL on success.
+
+    Raises:
+        HTTPException: 429 on rate limit, 401 on bad credentials.
+    """
+    ip = request.client.host if request.client else "unknown"
+    try:
+        _auth.check_rate_limit(body.username, ip)
+    except RateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+
+    user = _auth.get_user_by_username(body.username)
+    if user is None or not user.is_active:
+        _auth.record_login_attempt(body.username, ip, success=False)
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    # Fetch hash from DB directly (User dataclass omits it)
+    from ..db import UserModel
+    with _db.session() as db:
+        row = db.query(UserModel).filter_by(username=body.username).first()
+        password_ok = _auth.verify_password(body.password, row.password_hash) if row else False
+
+    if not password_ok:
+        _auth.record_login_attempt(body.username, ip, success=False)
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    _auth.record_login_attempt(body.username, ip, success=True)
+    token = _auth.create_session(user.id, ip)
+
+    response.set_cookie(
+        key=_SESSION_COOKIE,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=86400 * 7,  # 7 days
+        secure=False,        # Set to True behind HTTPS in production
+    )
+    return {"user": user.to_dict(), "redirect": "/"}
+
+
+@app.post("/auth/logout", status_code=204)
+async def auth_logout(request: Request, response: Response):
+    """Invalidate the current session cookie."""
+    token = request.cookies.get(_SESSION_COOKIE)
+    if token:
+        _auth.delete_session(token)
+    response.delete_cookie(_SESSION_COOKIE)
+
+
+@app.get("/auth/me")
+async def auth_me(current_user: CurrentUser):
+    """Return the currently authenticated user's profile."""
+    return current_user.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# User management routes (admin only)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/users")
+async def list_users(_admin: AdminUser):
+    """List all user accounts. Requires admin role."""
+    return [u.to_dict() for u in _auth.list_users()]
+
+
+@app.post("/api/users", status_code=201)
+async def create_user(body: UserCreateRequest, _admin: AdminUser):
+    """Create a new user account. Requires admin role."""
+    try:
+        user = _auth.create_user(
+            username=body.username,
+            password=body.password,
+            role=body.role,
+            email=body.email,
+        )
+    except (AuthError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return user.to_dict()
+
+
+@app.patch("/api/users/{user_id}")
+async def update_user(user_id: str, body: UserUpdateRequest, _admin: AdminUser):
+    """Update role, active status, email, or password for a user. Requires admin role."""
+    try:
+        user = _auth.update_user(
+            user_id,
+            role=body.role,
+            is_active=body.is_active,
+            email=body.email,
+            password=body.password,
+        )
+    except AuthError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return user.to_dict()
+
+
+@app.delete("/api/users/{user_id}", status_code=204)
+async def deactivate_user(user_id: str, current_user: CurrentUser, _admin: AdminUser):
+    """Disable a user account (soft delete). Cannot deactivate yourself."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account.")
+    try:
+        _auth.update_user(user_id, is_active=False)
+    except AuthError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

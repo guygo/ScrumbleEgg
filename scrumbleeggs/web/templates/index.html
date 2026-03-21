@@ -1030,6 +1030,34 @@
       </svg>
       New issue
     </button>
+
+    <!-- Current user + logout -->
+    <div x-data="{ menuOpen: false }" class="relative flex-shrink-0 ml-1">
+      <button @click="menuOpen=!menuOpen"
+              class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-n800
+                     border border-transparent hover:border-n700 transition-colors">
+        <div class="w-6 h-6 rounded-full bg-acc/20 border border-acc/40 flex items-center justify-center flex-shrink-0">
+          <span class="text-[10px] font-semibold text-acc" x-text="(currentUser?.username||'?')[0].toUpperCase()"></span>
+        </div>
+        <span class="text-xs text-n300 font-medium hidden sm:block" x-text="currentUser?.username||''"></span>
+        <span class="text-[10px] text-n600 hidden sm:block capitalize" x-text="currentUser?.role||''"></span>
+      </button>
+      <div x-show="menuOpen" @click.outside="menuOpen=false" x-cloak
+           class="absolute top-9 right-0 bg-n850 border border-n700 rounded-xl shadow-2xl p-2 z-50 min-w-[180px]">
+        <div class="px-3 py-2 border-b border-n700 mb-1">
+          <p class="text-xs font-semibold text-n200" x-text="currentUser?.username"></p>
+          <p class="text-[10px] text-n500 capitalize" x-text="currentUser?.role"></p>
+        </div>
+        <button x-show="currentUser?.role==='admin'" @click="menuOpen=false; switchView('users')"
+                class="w-full text-left px-3 py-1.5 text-xs text-n300 hover:bg-n800 rounded-lg transition-colors">
+          Manage users
+        </button>
+        <button @click="logout()"
+                class="w-full text-left px-3 py-1.5 text-xs text-r400 hover:bg-n800 rounded-lg transition-colors">
+          Sign out
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Row 2: View toggles · Board controls · Theme ── -->
@@ -1831,6 +1859,134 @@
 </main>
 
 <!-- ══════════════════════════════════════════════
+     USERS VIEW (admin only)
+══════════════════════════════════════════════ -->
+<main x-show="view==='users'" x-cloak class="flex-1 overflow-auto p-6">
+  <div class="max-w-3xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="text-lg font-semibold text-n100">User Management</h2>
+        <p class="text-xs text-n500 mt-0.5">Create and manage workspace members.</p>
+      </div>
+      <button @click="userCreateOpen=true; userCreateError=''"
+              class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
+                     px-3 py-1.5 rounded-lg transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        </svg>
+        Add user
+      </button>
+    </div>
+
+    <!-- Create user form -->
+    <div x-show="userCreateOpen" x-cloak
+         class="mb-6 bg-n900 border border-n700 rounded-xl p-5 space-y-3">
+      <h3 class="text-sm font-semibold text-n100 mb-1">New user</h3>
+      <div x-show="userCreateError" class="text-xs text-r400 bg-r900 border border-r400/20 px-3 py-2 rounded-lg" x-text="userCreateError"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-n500 mb-1">Username *</label>
+          <input x-model="userCreateForm.username" type="text" placeholder="alice"
+                 class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
+                        focus:outline-none focus:border-acc transition-colors" />
+        </div>
+        <div>
+          <label class="block text-xs text-n500 mb-1">Password *</label>
+          <input x-model="userCreateForm.password" type="password" placeholder="min 8 chars"
+                 class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
+                        focus:outline-none focus:border-acc transition-colors" />
+        </div>
+        <div>
+          <label class="block text-xs text-n500 mb-1">Role</label>
+          <select x-model="userCreateForm.role"
+                  class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
+                         focus:outline-none focus:border-acc transition-colors">
+            <option value="developer">Developer</option>
+            <option value="tester">Tester</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-n500 mb-1">Email (optional)</label>
+          <input x-model="userCreateForm.email" type="email" placeholder="alice@example.com"
+                 class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
+                        focus:outline-none focus:border-acc transition-colors" />
+        </div>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button @click="createUser()"
+                class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+          Create
+        </button>
+        <button @click="userCreateOpen=false"
+                class="text-xs text-n500 hover:text-n300 px-3 py-1.5 rounded-lg transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+    <!-- Users table -->
+    <div x-show="usersViewLoading" class="text-center text-n500 text-sm py-12">Loading…</div>
+    <div x-show="!usersViewLoading && usersViewData.length === 0" class="text-center text-n600 text-sm py-12">No users found.</div>
+    <div x-show="!usersViewLoading && usersViewData.length > 0"
+         class="bg-n900 border border-n800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-n800">
+            <th class="text-left text-[11px] text-n500 font-medium uppercase tracking-wider px-4 py-3">User</th>
+            <th class="text-left text-[11px] text-n500 font-medium uppercase tracking-wider px-4 py-3">Role</th>
+            <th class="text-left text-[11px] text-n500 font-medium uppercase tracking-wider px-4 py-3">Last login</th>
+            <th class="text-left text-[11px] text-n500 font-medium uppercase tracking-wider px-4 py-3">Status</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="u in usersViewData" :key="u.id">
+            <tr class="border-b border-n800/50 hover:bg-n800/30 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full bg-acc/20 border border-acc/40 flex items-center justify-center flex-shrink-0">
+                    <span class="text-[11px] font-semibold text-acc" x-text="u.username[0].toUpperCase()"></span>
+                  </div>
+                  <div>
+                    <p class="text-n100 font-medium text-xs" x-text="u.username"></p>
+                    <p class="text-n600 text-[10px]" x-text="u.email || '—'"></p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full capitalize"
+                      :class="{
+                        'bg-y900 text-y400': u.role==='admin',
+                        'bg-accL text-acc': u.role==='developer',
+                        'bg-g900 text-g400': u.role==='tester'
+                      }"
+                      x-text="u.role"></span>
+              </td>
+              <td class="px-4 py-3 text-xs text-n500"
+                  x-text="u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'"></td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                      :class="u.is_active ? 'bg-g900 text-g400' : 'bg-n800 text-n500'"
+                      x-text="u.is_active ? 'Active' : 'Disabled'"></span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button @click="toggleUserActive(u)"
+                        :disabled="u.id === currentUser?.id"
+                        :class="u.id===currentUser?.id ? 'opacity-30 cursor-not-allowed' : 'hover:text-n200'"
+                        class="text-xs text-n500 transition-colors"
+                        x-text="u.is_active ? 'Disable' : 'Enable'">
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════════
      ROADMAP VIEW
 ══════════════════════════════════════════════ -->
 <main x-show="view==='roadmap'" x-cloak class="flex-1 overflow-auto p-6">
@@ -2261,6 +2417,12 @@ function app() {
     roadmapStart: null, roadmapEnd: null,
     // Theme
     darkMode: true,
+    // Auth
+    currentUser: null,
+    // User management (admin view)
+    usersViewData: [], usersViewLoading: false,
+    userCreateForm: { username:'', password:'', role:'developer', email:'' },
+    userCreateOpen: false, userCreateError: '',
 
     columns: [
       { status:'backlog',     label:'Backlog',     icon: svgStatusIcon('backlog')     },
@@ -2302,6 +2464,12 @@ function app() {
       document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
       this.loadWipLimits();
       this.loadSavedFilters();
+      // Load current user identity
+      try {
+        const r = await fetch('/auth/me');
+        if (r.ok) this.currentUser = await r.json();
+        else if (r.status === 401) window.location.href = '/login';
+      } catch { /* offline */ }
       await Promise.all([this.loadBoard(), this.loadStats(), this.loadProjects(), this.loadStories(), this.loadCustomFields(), this.loadSprints()]);
     },
 
@@ -2310,6 +2478,51 @@ function app() {
       const theme = this.darkMode ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('sbe_theme', theme);
+    },
+
+    async logout() {
+      await fetch('/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    },
+
+    async loadUsersView() {
+      this.usersViewLoading = true;
+      try {
+        const r = await fetch('/api/users');
+        if (r.ok) this.usersViewData = await r.json();
+      } finally {
+        this.usersViewLoading = false;
+      }
+    },
+
+    async createUser() {
+      this.userCreateError = '';
+      const r = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.userCreateForm),
+      });
+      if (r.ok) {
+        this.userCreateOpen = false;
+        this.userCreateForm = { username:'', password:'', role:'developer', email:'' };
+        await this.loadUsersView();
+        this.toast('User created', 'success');
+      } else {
+        const d = await r.json();
+        this.userCreateError = d.detail || 'Failed to create user';
+      }
+    },
+
+    async toggleUserActive(user) {
+      const r = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !user.is_active }),
+      });
+      if (r.ok) {
+        await this.loadUsersView();
+        this.toast(user.is_active ? 'User deactivated' : 'User activated', 'success');
+      }
     },
 
     // ── Data ─────────────────────────────────────────────────────────
@@ -2616,6 +2829,7 @@ function app() {
       else if (v === 'sprints') await this.loadSprints();
       else if (v === 'workload') await this.loadWorkload();
       else if (v === 'roadmap') { await Promise.all([this.loadSprints(), this.loadRoadmap()]); }
+      else if (v === 'users') await this.loadUsersView();
       else await this.loadBoard();
     },
 
