@@ -1,12 +1,16 @@
 <!DOCTYPE html>
-<html lang="en" x-data="app()" x-init="init()">
+<html lang="en" x-data="app()" x-init="init()" :data-theme="darkMode?'dark':'light'">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scrumbleeggs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Apply theme before Alpine to prevent flash -->
+  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('sbe_theme')||'dark')</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>marked.setOptions({ breaks: true, gfm: true });</script>
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
   <script>
@@ -15,9 +19,9 @@
         fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
         extend: {
           colors: {
-            n950:'#09090b', n900:'#111113', n850:'#161618', n800:'#1c1c1f',
-            n750:'#212124', n700:'#2a2a2e', n600:'#3a3a3f', n500:'#515158',
-            n400:'#6e6e76', n300:'#94949d', n200:'#b8b8c0', n100:'#dcdce0', n50:'#f0f0f2',
+            n950:'var(--n950)', n900:'var(--n900)', n850:'var(--n850)', n800:'var(--n800)',
+            n750:'var(--n750)', n700:'var(--n700)', n600:'var(--n600)', n500:'var(--n500)',
+            n400:'var(--n400)', n300:'var(--n300)', n200:'var(--n200)', n100:'var(--n100)', n50:'var(--n50)',
             acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)',
             g400:'#4ade80', g900:'rgba(74,222,128,0.12)',
             r400:'#f87171', r900:'rgba(248,113,113,0.12)',
@@ -30,19 +34,35 @@
   </script>
 
   <style>
+    /* ── Theme variables ─────────────────────────────────────── */
+    :root, [data-theme="dark"] {
+      --n950:#09090b; --n900:#111113; --n850:#161618; --n800:#1c1c1f;
+      --n750:#212124; --n700:#2a2a2e; --n600:#3a3a3f; --n500:#515158;
+      --n400:#6e6e76; --n300:#94949d; --n200:#b8b8c0; --n100:#dcdce0; --n50:#f0f0f2;
+      --bg:#0f0f11; --fg:#e2e2e5;
+      --card-shadow:rgba(0,0,0,.4);
+    }
+    [data-theme="light"] {
+      --n950:#f0f0f6; --n900:#ffffff; --n850:#fafafa; --n800:#f4f4f8;
+      --n750:#ebebf0; --n700:#e0e0e8; --n600:#c4c4d2; --n500:#7878a0;
+      --n400:#545468; --n300:#383850; --n200:#222230; --n100:#141420; --n50:#0a0a14;
+      --bg:#f0f0f6; --fg:#141420;
+      --card-shadow:rgba(0,0,0,.08);
+    }
+
     [x-cloak]{display:none!important}
     *{box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-    body{background:#0f0f11;color:#e2e2e5;font-family:'Inter',sans-serif;font-feature-settings:'cv02','cv03','cv04','cv11'}
+    body{background:var(--bg);color:var(--fg);font-family:'Inter',sans-serif;font-feature-settings:'cv02','cv03','cv04','cv11';transition:background .2s,color .15s}
 
     /* Scrollbars */
     ::-webkit-scrollbar{width:3px;height:3px}
     ::-webkit-scrollbar-track{background:transparent}
-    ::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:99px}
-    ::-webkit-scrollbar-thumb:hover{background:#3a3a3f}
+    ::-webkit-scrollbar-thumb{background:var(--n600);border-radius:99px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--n500)}
 
     /* Card */
     .ticket-card{transition:background 80ms,box-shadow 80ms,transform 80ms}
-    .ticket-card:hover{background:#212124;box-shadow:0 2px 12px rgba(0,0,0,.4);transform:translateY(-1px)}
+    .ticket-card:hover{background:var(--n750);box-shadow:0 2px 12px var(--card-shadow);transform:translateY(-1px)}
     .ticket-card:active{transform:translateY(0);box-shadow:none}
 
     /* Priority left edge */
@@ -50,7 +70,7 @@
     .pri-edge-critical{background:#f87171}
     .pri-edge-high{background:#fb923c}
     .pri-edge-medium{background:#fbbf24}
-    .pri-edge-low{background:#3a3a3f}
+    .pri-edge-low{background:var(--n600)}
 
     /* Drag */
     .dragging{opacity:.2;transform:scale(.97)}
@@ -74,17 +94,21 @@
     .card-in{animation:fadeUp .12s ease-out}
 
     /* Filter input */
-    .filter-input{background:transparent;border:none;outline:none;color:#e2e2e5;font-size:12px;width:100%}
-    .filter-input::placeholder{color:#515158}
+    .filter-input{background:transparent;border:none;outline:none;color:var(--fg);font-size:12px;width:100%}
+    .filter-input::placeholder{color:var(--n500)}
 
     /* Chip */
     .chip{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:500;border:1px solid}
+
+    /* Hide scrollbar but keep functionality */
+    .scrollbar-none{scrollbar-width:none;-ms-overflow-style:none}
+    .scrollbar-none::-webkit-scrollbar{display:none}
 
     /* Badge */
     .badge{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:9999px;font-size:10px;font-weight:500}
 
     /* kbd */
-    kbd{font-family:inherit;font-size:10px;background:#1c1c1f;border:1px solid #2a2a2e;border-radius:4px;padding:1px 5px;color:#515158}
+    kbd{font-family:inherit;font-size:10px;background:var(--n800);border:1px solid var(--n700);border-radius:4px;padding:1px 5px;color:var(--n500)}
 
     /* Select arrow hidden */
     select{-webkit-appearance:none;appearance:none}
@@ -93,7 +117,59 @@
     [title]{cursor:default}
 
     /* Col scroll */
-    .col-scroll{flex:1;overflow-y:auto;overflow-x:hidden}
+    .col-scroll{flex:1;overflow-y:auto;overflow-x:hidden;min-height:120px}
+
+    /* Drag & drop */
+    .drag-ghost{opacity:0!important}
+    .drop-indicator{height:2px;background:#5e6ad2;border-radius:2px;margin:2px 6px;pointer-events:none;transition:opacity .1s}
+    .card-drag-over-top{box-shadow:0 -2px 0 0 #5e6ad2!important}
+    .card-drag-over-bottom{box-shadow:0 2px 0 0 #5e6ad2!important}
+
+    /* Prose content (adapts to theme) */
+    .prose-dark { font-size:13px; color:var(--n200); line-height:1.7; }
+    .prose-dark h1,.prose-dark h2,.prose-dark h3 { color:var(--n100); font-weight:600; margin:12px 0 6px; }
+    .prose-dark h1 { font-size:15px; } .prose-dark h2 { font-size:14px; } .prose-dark h3 { font-size:13px; }
+    .prose-dark p { margin:0 0 8px; }
+    .prose-dark ul,.prose-dark ol { padding-left:20px; margin:0 0 8px; }
+    .prose-dark li { margin:2px 0; }
+    .prose-dark code { background:var(--n700); color:#a78bfa; padding:1px 5px; border-radius:4px; font-size:12px; font-family:ui-monospace,monospace; }
+    .prose-dark pre { background:var(--n800); border:1px solid var(--n700); border-radius:8px; padding:12px; overflow-x:auto; margin:8px 0; }
+    .prose-dark pre code { background:none; color:var(--n100); padding:0; }
+    .prose-dark blockquote { border-left:2px solid var(--n600); padding-left:12px; color:var(--n500); margin:8px 0; }
+    .prose-dark a { color:#5e6ad2; text-decoration:none; }
+    .prose-dark a:hover { text-decoration:underline; }
+    .prose-dark hr { border:none; border-top:1px solid var(--n700); margin:12px 0; }
+    .prose-dark table { width:100%; border-collapse:collapse; margin:8px 0; }
+    .prose-dark th { background:var(--n800); color:var(--n100); padding:6px 10px; font-size:11px; text-align:left; border:1px solid var(--n700); }
+    .prose-dark td { padding:6px 10px; border:1px solid var(--n700); font-size:12px; }
+
+    /* Ticket aging */
+    .age-warn{border-left-color:#fbbf24!important}
+    .age-old{border-left-color:#f87171!important}
+    .age-badge{font-size:9px;padding:0 4px;border-radius:3px;font-weight:600}
+    .age-badge-warn{background:rgba(251,191,36,.15);color:#fbbf24}
+    .age-badge-old{background:rgba(248,113,113,.15);color:#f87171}
+
+    /* WIP limit */
+    .wip-ok{color:#4ade80}
+    .wip-warn{color:#fbbf24}
+    .wip-over{color:#f87171;animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+    /* Quick card actions */
+    .card-actions{display:none;position:absolute;top:4px;right:4px;gap:3px}
+    .ticket-card:hover .card-actions{display:flex}
+    .card-action-btn{padding:2px 5px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid;cursor:pointer;transition:all 80ms;line-height:1.4}
+
+    /* Swimlane */
+    .swimlane-header{position:sticky;top:0;z-index:5;background:var(--n850);border-bottom:1px solid var(--n750);padding:4px 12px;font-size:10px;font-weight:600;color:var(--n500);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+
+    /* Roadmap */
+    .roadmap-bar{height:22px;border-radius:4px;position:absolute;min-width:4px;cursor:pointer;transition:filter 80ms}
+    .roadmap-bar:hover{filter:brightness(1.2)}
+
+    /* Workload row */
+    .workload-bar{height:6px;border-radius:3px;transition:width .5s}
   </style>
 </head>
 
@@ -172,7 +248,15 @@
             <span class="text-n500 text-xs w-32 flex-shrink-0">Priority</span>
             <div class="flex items-center gap-2">
               <span x-html="priorityIcon(currentTicket?.priority)"></span>
-              <span class="text-n200 capitalize text-sm" x-text="currentTicket?.priority"></span>
+              <span x-show="!adminMode" class="text-n200 capitalize text-sm" x-text="currentTicket?.priority"></span>
+              <select x-show="adminMode" :value="currentTicket?.priority"
+                      @change="inlineUpdate('priority', $event.target.value)"
+                      class="bg-transparent text-n200 text-sm capitalize focus:outline-none cursor-pointer">
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
             </div>
           </div>
 
@@ -184,22 +268,37 @@
             </div>
           </div>
 
-          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.assignee">
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="adminMode || currentTicket?.assignee">
             <span class="text-n500 text-xs w-32 flex-shrink-0">Assignee</span>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2" x-show="!adminMode">
               <span x-html="avatar(currentTicket?.assignee, 18)"></span>
               <span class="text-n200 text-sm" x-text="currentTicket?.assignee"></span>
             </div>
+            <input x-show="adminMode" type="text"
+                   :value="currentTicket?.assignee||''"
+                   @blur="inlineUpdate('assignee', $event.target.value)"
+                   placeholder="Assignee name"
+                   class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500 flex-1"/>
           </div>
 
-          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.sprint">
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="adminMode || currentTicket?.sprint">
             <span class="text-n500 text-xs w-32 flex-shrink-0">Sprint</span>
-            <span class="text-n200 text-sm" x-text="currentTicket?.sprint"></span>
+            <span x-show="!adminMode" class="text-n200 text-sm" x-text="currentTicket?.sprint"></span>
+            <input x-show="adminMode" type="text"
+                   :value="currentTicket?.sprint||''"
+                   @blur="inlineUpdate('sprint', $event.target.value)"
+                   placeholder="Sprint name"
+                   class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500 flex-1"/>
           </div>
 
-          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.story_points">
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="adminMode || currentTicket?.story_points">
             <span class="text-n500 text-xs w-32 flex-shrink-0">Points</span>
-            <span class="text-n200 text-sm font-mono" x-text="currentTicket?.story_points"></span>
+            <span x-show="!adminMode" class="text-n200 text-sm font-mono" x-text="currentTicket?.story_points"></span>
+            <input x-show="adminMode" type="number" min="0"
+                   :value="currentTicket?.story_points||''"
+                   @blur="inlineUpdate('story_points', $event.target.value ? +$event.target.value : null)"
+                   placeholder="—"
+                   class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500 w-20 font-mono"/>
           </div>
 
           <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.role">
@@ -212,20 +311,52 @@
             <span class="text-n400 text-xs" x-text="relativeDate(currentTicket?.created_at)"></span>
           </div>
 
+          <!-- Custom fields (always shown if has value, or in admin mode) -->
+          <template x-for="cf in customFieldDefs" :key="cf.id">
+            <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors"
+                 x-show="adminMode || (currentTicket?.custom_data && currentTicket?.custom_data[cf.key] !== undefined && currentTicket?.custom_data[cf.key] !== '')">
+              <span class="text-n500 text-xs w-32 flex-shrink-0" x-text="cf.name"></span>
+              <div x-show="!adminMode" class="text-n200 text-sm" x-text="currentTicket?.custom_data?.[cf.key] ?? '—'"></div>
+              <div x-show="adminMode" class="flex-1">
+                <!-- text / number -->
+                <input x-show="cf.field_type==='text'||cf.field_type==='number'"
+                       :type="cf.field_type"
+                       :value="currentTicket?.custom_data?.[cf.key]??''"
+                       @change="updateCustomField(cf.key, $event.target.value)"
+                       class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500 w-full"/>
+                <!-- checkbox -->
+                <input x-show="cf.field_type==='checkbox'"
+                       type="checkbox"
+                       :checked="!!currentTicket?.custom_data?.[cf.key]"
+                       @change="updateCustomField(cf.key, $event.target.checked)"
+                       class="rounded"/>
+                <!-- select -->
+                <select x-show="cf.field_type==='select'"
+                        :value="currentTicket?.custom_data?.[cf.key]??''"
+                        @change="updateCustomField(cf.key, $event.target.value)"
+                        class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500 w-full">
+                  <option value="">— none —</option>
+                  <template x-for="opt in (cf.options||[])" :key="opt">
+                    <option :value="opt" x-text="opt"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+          </template>
+
         </div>
 
         <!-- Description -->
         <div x-show="currentTicket?.description" class="space-y-1.5">
           <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Description</p>
-          <p class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap" x-text="currentTicket?.description"></p>
+          <div class="prose-dark" x-html="marked.parse(currentTicket?.description || '')"></div>
         </div>
 
         <!-- Acceptance criteria -->
         <div x-show="currentTicket?.acceptance_criteria" class="space-y-1.5">
           <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Acceptance Criteria</p>
-          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap
-                      bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-acc"
-               x-text="currentTicket?.acceptance_criteria"></div>
+          <div class="prose-dark bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-acc"
+               x-html="marked.parse(currentTicket?.acceptance_criteria || '')"></div>
         </div>
 
         <!-- Dev checklist -->
@@ -250,9 +381,8 @@
         <!-- Test plan -->
         <div x-show="currentTicket?.test_plan" class="space-y-1.5">
           <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Test Plan</p>
-          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap
-                      bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-y400"
-               x-text="currentTicket?.test_plan"></div>
+          <div class="prose-dark bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-y400"
+               x-html="marked.parse(currentTicket?.test_plan || '')"></div>
         </div>
 
         <!-- Test cases -->
@@ -278,14 +408,153 @@
         <!-- QA notes -->
         <div x-show="currentTicket?.qa_notes" class="space-y-1.5">
           <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">QA Notes</p>
-          <div class="text-[13px] text-n200 leading-relaxed whitespace-pre-wrap
-                      bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-o400"
-               x-text="currentTicket?.qa_notes"></div>
+          <div class="prose-dark bg-n800 border border-n700 rounded-lg p-3.5 border-l-2 border-l-o400"
+               x-html="marked.parse(currentTicket?.qa_notes || '')"></div>
         </div>
 
         <div class="h-6"></div>
       </div>
     </div>
+
+    <!-- Comments -->
+    <div class="px-5 pb-5 border-t border-n700">
+      <p class="text-[11px] font-medium text-n500 uppercase tracking-wider mt-4 mb-3">Comments <span x-text="comments.length ? `(${comments.length})` : ''" class="text-n500"></span></p>
+
+      <div class="space-y-3 mb-4">
+        <template x-if="commentsLoading">
+          <div class="text-n500 text-xs">Loading...</div>
+        </template>
+        <template x-for="c in comments" :key="c.id">
+          <div class="bg-n800 border border-n700 rounded-lg p-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-semibold text-acc" x-text="c.author"></span>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-n500" x-text="c.created_at ? c.created_at.slice(0,16).replace('T',' ') : ''"></span>
+                <button @click="deleteComment(c.id)" class="text-n600 hover:text-r400 text-xs transition-colors">×</button>
+              </div>
+            </div>
+            <div class="prose-dark text-[12px]" x-html="marked.parse(c.body || '')"></div>
+          </div>
+        </template>
+        <template x-if="!commentsLoading && comments.length === 0">
+          <div class="text-n500 text-xs">No comments yet.</div>
+        </template>
+      </div>
+
+      <div class="space-y-2">
+        <input x-model="commentAuthor" placeholder="Your name (optional)"
+               class="w-full bg-n800 border border-n700 rounded-lg px-3 py-2 text-xs text-n200 placeholder-n500 outline-none focus:border-acc transition-colors" />
+        <textarea x-model="commentBody" placeholder="Write a comment... (markdown supported)" rows="3"
+                  class="w-full bg-n800 border border-n700 rounded-lg px-3 py-2 text-xs text-n200 placeholder-n500 outline-none focus:border-acc transition-colors resize-none"></textarea>
+        <button @click="postComment()"
+                class="px-3 py-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold rounded-lg transition-colors">
+          Post comment
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Subtasks ── -->
+    <div class="px-5 pb-4 border-t border-n700">
+      <div class="flex items-center justify-between mt-4 mb-3">
+        <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Subtasks <span class="text-n700" x-text="subtasks.length ? `(${subtasks.length})` : ''"></span></p>
+        <button @click="subtaskFormOpen=!subtaskFormOpen" class="text-[11px] text-acc hover:underline">+ Add</button>
+      </div>
+      <div x-show="subtaskFormOpen" class="mb-3 bg-n800 border border-n700 rounded-lg p-3 space-y-2">
+        <input type="text" x-model="subtaskForm.title" placeholder="Subtask title" @keydown.enter="createSubtask()"
+               class="w-full bg-transparent text-n200 text-xs placeholder-n600 border-none focus:outline-none"/>
+        <div class="flex gap-2">
+          <select x-model="subtaskForm.ticket_type" class="bg-n750 border border-n700 text-n400 text-[11px] rounded px-2 py-1 focus:outline-none flex-1">
+            <option value="task">Task</option><option value="bug">Bug</option><option value="story">Story</option>
+          </select>
+          <select x-model="subtaskForm.priority" class="bg-n750 border border-n700 text-n400 text-[11px] rounded px-2 py-1 focus:outline-none flex-1">
+            <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
+          </select>
+          <button @click="createSubtask()" class="px-3 py-1 bg-acc text-white text-[11px] rounded-lg">Create</button>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <template x-for="st in subtasks" :key="st.key">
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-n800 cursor-pointer group"
+               @click="openDetail(st)">
+            <span x-html="statusIcon(st.status)" class="flex-shrink-0"></span>
+            <span class="text-[12px] text-n200 flex-1 truncate" x-text="st.title"></span>
+            <span class="font-mono text-[10px] text-n600" x-text="st.key"></span>
+            <span x-html="priorityIcon(st.priority)" class="flex-shrink-0 opacity-60"></span>
+          </div>
+        </template>
+        <div x-show="!subtasks.length && !subtaskFormOpen" class="text-[11px] text-n700 px-2">No subtasks</div>
+      </div>
+    </div>
+
+    <!-- ── Relations ── -->
+    <div class="px-5 pb-4 border-t border-n700">
+      <div class="flex items-center justify-between mt-4 mb-3">
+        <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Relations <span class="text-n700" x-text="relations.length ? `(${relations.length})` : ''"></span></p>
+        <button @click="relationFormOpen=!relationFormOpen" class="text-[11px] text-acc hover:underline">+ Link</button>
+      </div>
+      <div x-show="relationFormOpen" class="mb-3 bg-n800 border border-n700 rounded-lg p-3 space-y-2">
+        <div class="flex gap-2">
+          <select x-model="relationForm.relation_type" class="bg-n750 border border-n700 text-n400 text-[11px] rounded px-2 py-1 focus:outline-none">
+            <option value="relates_to">Relates to</option><option value="blocks">Blocks</option>
+            <option value="blocked_by">Blocked by</option><option value="duplicate_of">Duplicate of</option>
+          </select>
+          <input type="text" x-model="relationForm.to_key" placeholder="SBE-42" @keydown.enter="addRelation()"
+                 class="flex-1 bg-n750 border border-n700 text-n200 text-[11px] rounded px-2 py-1 focus:outline-none uppercase"/>
+          <button @click="addRelation()" class="px-3 py-1 bg-acc text-white text-[11px] rounded-lg">Link</button>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <template x-for="r in relations" :key="r.id">
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-n800 group">
+            <span class="text-[10px] text-n600 w-20 flex-shrink-0 capitalize" x-text="r.relation_type.replace('_',' ')"></span>
+            <span class="font-mono text-[11px] text-acc flex-1 cursor-pointer hover:underline"
+                  @click="openDetail({key:r.from_key===currentTicket?.key?r.to_key:r.from_key})"
+                  x-text="r.from_key===currentTicket?.key ? r.to_key : r.from_key"></span>
+            <button @click="deleteRelation(r.id)" class="text-n700 hover:text-r400 opacity-0 group-hover:opacity-100 transition-all">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </template>
+        <div x-show="!relations.length && !relationFormOpen" class="text-[11px] text-n700 px-2">No linked issues</div>
+      </div>
+    </div>
+
+    <!-- ── Time Logged ── -->
+    <div class="px-5 pb-5 border-t border-n700">
+      <div class="flex items-center justify-between mt-4 mb-3">
+        <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">
+          Time logged
+          <span x-show="timeEntries.length" class="text-acc ml-1 font-mono" x-text="totalTimeLogged()"></span>
+        </p>
+        <button @click="timeFormOpen=!timeFormOpen" class="text-[11px] text-acc hover:underline">+ Log</button>
+      </div>
+      <div x-show="timeFormOpen" class="mb-3 bg-n800 border border-n700 rounded-lg p-3 space-y-2">
+        <div class="flex gap-2 items-center">
+          <input type="number" x-model.number="timeForm.minutes" min="1" placeholder="Minutes"
+                 class="w-20 bg-n750 border border-n700 text-n200 text-[11px] rounded px-2 py-1 focus:outline-none"/>
+          <span class="text-[11px] text-n600">min</span>
+          <input type="text" x-model="timeForm.author" placeholder="Your name"
+                 class="flex-1 bg-n750 border border-n700 text-n200 text-[11px] rounded px-2 py-1 focus:outline-none"/>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" x-model="timeForm.note" placeholder="Note (optional)" @keydown.enter="logTime()"
+                 class="flex-1 bg-n750 border border-n700 text-n200 text-[11px] rounded px-2 py-1 focus:outline-none"/>
+          <button @click="logTime()" class="px-3 py-1 bg-acc text-white text-[11px] rounded-lg">Log</button>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <template x-for="e in timeEntries" :key="e.id">
+          <div class="flex items-center gap-2 px-2 py-1.5 text-[11px] text-n400 rounded-lg hover:bg-n800">
+            <span class="font-mono text-n300 w-12 flex-shrink-0" x-text="e.minutes >= 60 ? Math.floor(e.minutes/60)+'h'+(e.minutes%60?e.minutes%60+'m':'') : e.minutes+'m'"></span>
+            <span class="text-n500 flex-shrink-0" x-text="e.author"></span>
+            <span class="text-n600 flex-1 truncate" x-text="e.note || ''"></span>
+            <span class="text-n700 flex-shrink-0" x-text="relativeDate(e.logged_at)"></span>
+          </div>
+        </template>
+        <div x-show="!timeEntries.length && !timeFormOpen" class="text-[11px] text-n700 px-2">No time logged</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -378,6 +647,12 @@
                           focus:outline-none focus:border-n500 placeholder-n600"/>
           </div>
           <div>
+            <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Project</label>
+            <input type="text" x-model="form.project" placeholder="Project name"
+                   class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                          focus:outline-none focus:border-n500 placeholder-n600"/>
+          </div>
+          <div>
             <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5">Story Points</label>
             <input type="number" x-model.number="form.story_points" placeholder="—" min="0"
                    class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
@@ -418,6 +693,48 @@
             <textarea x-model="form.qa_notes" rows="2" placeholder="Edge cases, blockers…"
                       class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
                              focus:outline-none focus:border-n500 placeholder-n600 resize-none leading-relaxed"></textarea>
+          </div>
+        </div>
+
+        <!-- Custom fields (shown to all, editable) -->
+        <div x-show="customFieldDefs.length" class="border-t border-n700 pt-3 space-y-3">
+          <p class="text-[11px] font-semibold text-n400 uppercase tracking-wider">Custom Fields</p>
+          <div class="grid grid-cols-2 gap-3">
+            <template x-for="cf in customFieldDefs" :key="cf.id">
+              <div>
+                <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1.5"
+                       x-text="cf.name + (cf.required ? ' *' : '')"></label>
+                <input x-show="cf.field_type==='text'"
+                       type="text"
+                       :value="form.custom_data?.[cf.key]||''"
+                       @input="setCustomData(cf.key, $event.target.value)"
+                       class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                              focus:outline-none focus:border-n500 placeholder-n600"/>
+                <input x-show="cf.field_type==='number'"
+                       type="number"
+                       :value="form.custom_data?.[cf.key]||''"
+                       @input="setCustomData(cf.key, $event.target.value ? +$event.target.value : null)"
+                       class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                              focus:outline-none focus:border-n500 placeholder-n600"/>
+                <label x-show="cf.field_type==='checkbox'" class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox"
+                         :checked="!!form.custom_data?.[cf.key]"
+                         @change="setCustomData(cf.key, $event.target.checked)"
+                         class="rounded"/>
+                  <span class="text-xs text-n400">Enabled</span>
+                </label>
+                <select x-show="cf.field_type==='select'"
+                        :value="form.custom_data?.[cf.key]||''"
+                        @change="setCustomData(cf.key, $event.target.value)"
+                        class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                               focus:outline-none focus:border-n500">
+                  <option value="">— none —</option>
+                  <template x-for="opt in (cf.options||[])" :key="opt">
+                    <option :value="opt" x-text="opt"></option>
+                  </template>
+                </select>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -477,141 +794,449 @@
 </div>
 
 <!-- ══════════════════════════════════════════════
-     TOP BAR
+     KEYBOARD SHORTCUTS OVERLAY
 ══════════════════════════════════════════════ -->
-<header class="flex-shrink-0 h-11 bg-n900 border-b border-n800 flex items-center px-4 gap-4 z-30">
-
-  <!-- Brand -->
-  <div class="flex items-center gap-2 flex-shrink-0">
-    <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none">
-      <ellipse cx="10" cy="10" rx="7" ry="8.5" fill="#5e6ad2" opacity=".15"/>
-      <ellipse cx="10" cy="10" rx="7" ry="8.5" stroke="#5e6ad2" stroke-width="1.4"/>
-      <path d="M7 8.5c.4-1.5 2.8-2.2 4-1" stroke="#5e6ad2" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-      <path d="M7.5 12c.4 1.5 2.8 1.8 4 .5" stroke="#5e6ad2" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-    </svg>
-    <span class="text-sm font-semibold text-n100 tracking-tight">Scrumbleeggs</span>
-    <div class="w-px h-4 bg-n700"></div>
-    <span class="text-xs text-n500 font-medium capitalize" x-text="view"></span>
-  </div>
-
-  <!-- JQL Filter bar -->
-  <div class="flex-1 max-w-lg">
-    <div class="relative flex items-center gap-2 h-7 px-3
-                bg-n800 border border-transparent hover:border-n700
-                focus-within:border-n600 focus-within:bg-n750
-                rounded-lg transition-colors duration-100">
-
-      <svg class="w-3.5 h-3.5 text-n600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
-      </svg>
-
-      <input class="filter-input flex-1" type="text"
-             x-model="jqlRaw"
-             @input.debounce.250ms="applyJQL()"
-             @keydown.enter="applyJQL()"
-             @keydown.escape.stop="clearJQL()"
-             placeholder='Filter: priority:high assignee:alice type:bug "login"' />
-
-      <!-- Hint pill -->
-      <button @click="showJQLRef = !showJQLRef"
-              class="text-[10px] text-n600 hover:text-n400 flex-shrink-0 font-medium transition-colors">
-        syntax
+<div x-show="shortcutsOpen" x-cloak
+     class="fixed inset-0 z-[70] flex items-center justify-center"
+     @keydown.escape.window="shortcutsOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/60" @click="shortcutsOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[400px] z-10 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-n100">Keyboard shortcuts</h2>
+      <button @click="shortcutsOpen=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
       </button>
-      <button x-show="jqlRaw" @click="clearJQL()"
-              class="text-n600 hover:text-n300 transition-colors flex-shrink-0">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    </div>
+    <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+      <div class="flex items-center gap-2"><kbd>N</kbd><span class="text-n400">New ticket</span></div>
+      <div class="flex items-center gap-2"><kbd>B</kbd><span class="text-n400">Board view</span></div>
+      <div class="flex items-center gap-2"><kbd>L</kbd><span class="text-n400">List view</span></div>
+      <div class="flex items-center gap-2"><kbd>S</kbd><span class="text-n400">Stories view</span></div>
+      <div class="flex items-center gap-2"><kbd>P</kbd><span class="text-n400">Projects view</span></div>
+      <div class="flex items-center gap-2"><kbd>R</kbd><span class="text-n400">Sprints view</span></div>
+      <div class="flex items-center gap-2"><kbd>/</kbd><span class="text-n400">Focus filter</span></div>
+      <div class="flex items-center gap-2"><kbd>⌘K</kbd><span class="text-n400">Full-text search</span></div>
+      <div class="flex items-center gap-2"><kbd>W</kbd><span class="text-n400">Team workload</span></div>
+      <div class="flex items-center gap-2"><kbd>M</kbd><span class="text-n400">Roadmap view</span></div>
+      <div class="flex items-center gap-2"><kbd>X</kbd><span class="text-n400">Bulk select mode</span></div>
+      <div class="flex items-center gap-2"><kbd>E</kbd><span class="text-n400">Save current filter</span></div>
+      <div class="flex items-center gap-2"><kbd>Esc</kbd><span class="text-n400">Close panel</span></div>
+      <div class="flex items-center gap-2"><kbd>?</kbd><span class="text-n400">This help</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     WIP LIMITS EDIT MODAL
+══════════════════════════════════════════════ -->
+<div x-show="wipEditOpen" x-cloak
+     class="fixed inset-0 z-[70] flex items-center justify-center"
+     @keydown.escape.window="wipEditOpen=false">
+  <div class="absolute inset-0 bg-black/60" @click="wipEditOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[360px] z-10 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-n100">WIP Limits</h2>
+      <button @click="wipEditOpen=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <p class="text-xs text-n500 mb-4">Set max tickets per column. Use 0 to disable.</p>
+    <div class="space-y-3">
+      <template x-for="col in columns" :key="col.status">
+        <div class="flex items-center justify-between gap-3">
+          <label class="text-xs text-n300 w-24 flex-shrink-0" x-text="col.label"></label>
+          <input type="number" min="0" max="99"
+                 :value="wipLimits[col.status]"
+                 @change="wipLimits[col.status] = parseInt($event.target.value) || 0; saveWipLimits()"
+                 class="w-20 bg-n700 border border-n600 rounded-lg px-3 py-1.5 text-xs text-n200 text-right focus:outline-none focus:border-accent"/>
+        </div>
+      </template>
+    </div>
+    <button @click="wipEditOpen=false"
+            class="mt-5 w-full py-2 bg-accent hover:bg-accent/90 text-white text-xs font-semibold rounded-lg transition-colors">
+      Done
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SEARCH OVERLAY
+══════════════════════════════════════════════ -->
+<div x-show="searchOpen" x-cloak
+     class="fixed inset-0 z-[70] flex items-start justify-center pt-[10vh]"
+     @keydown.escape.window="searchOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/60" @click="searchOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[600px] z-10 overflow-hidden">
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-n700">
+      <svg class="w-4 h-4 text-n500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+      </svg>
+      <input x-ref="searchInput" x-model="searchQuery" type="text" placeholder="Search tickets..."
+             @input="clearTimeout(searchTimer); searchTimer = setTimeout(() => doSearch(), 300)"
+             class="flex-1 bg-transparent text-n100 text-sm placeholder-n600 outline-none" />
+      <button @click="searchOpen=false" class="text-n600 hover:text-n300 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
+    <div class="max-h-[420px] overflow-y-auto">
+      <div x-show="searchLoading" class="py-8 text-center text-n500 text-sm">Searching...</div>
+      <template x-if="!searchLoading && searchResults.length === 0 && searchQuery.trim().length >= 2">
+        <div class="py-8 text-center text-n600 text-sm">No results found</div>
+      </template>
+      <template x-for="t in searchResults" :key="t.key">
+        <div class="flex items-center gap-3 px-4 py-3 hover:bg-n800 cursor-pointer transition-colors border-b border-n800/50"
+             @click="openDetail(t); searchOpen=false;">
+          <span class="font-mono text-[11px] text-n600 w-20 flex-shrink-0" x-text="t.key"></span>
+          <span class="flex-1 text-[13px] text-n100 truncate" x-text="t.title"></span>
+          <span class="text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                :class="{
+                  'bg-n700 text-n400': t.status==='backlog',
+                  'bg-accL text-acc': t.status==='in_progress',
+                  'bg-y900 text-y400': t.status==='review',
+                  'bg-g900 text-g400': t.status==='done'
+                }"
+                x-text="t.status.replace('_',' ')"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
 
-    <!-- JQL syntax reference popover -->
-    <div x-show="showJQLRef" x-cloak @click.outside="showJQLRef=false"
-         class="absolute top-11 left-0 right-0 mx-auto max-w-lg bg-n800 border border-n700
-                rounded-xl shadow-2xl p-4 z-50 text-xs">
-      <div class="flex items-center justify-between mb-3">
-        <p class="font-semibold text-n100">Filter syntax</p>
-        <button @click="showJQLRef=false" class="text-n500 hover:text-n300">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<!-- ══════════════════════════════════════════════
+     TOP BAR — two rows
+══════════════════════════════════════════════ -->
+<header class="flex-shrink-0 bg-n900 border-b border-n800 z-30">
+
+  <!-- ── Row 1: Brand · Filter · Stats · New issue ── -->
+  <div class="h-11 flex items-center px-4 gap-3 border-b border-n800/60">
+
+    <!-- Brand -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <svg class="w-5 h-5" viewBox="0 0 20 20" fill="none">
+        <ellipse cx="10" cy="10" rx="7" ry="8.5" fill="#5e6ad2" opacity=".15"/>
+        <ellipse cx="10" cy="10" rx="7" ry="8.5" stroke="#5e6ad2" stroke-width="1.4"/>
+        <path d="M7 8.5c.4-1.5 2.8-2.2 4-1" stroke="#5e6ad2" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+        <path d="M7.5 12c.4 1.5 2.8 1.8 4 .5" stroke="#5e6ad2" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+      </svg>
+      <span class="text-sm font-semibold text-n100 tracking-tight">Scrumbleeggs</span>
+      <div class="w-px h-4 bg-n700"></div>
+      <span class="text-xs text-n500 font-medium capitalize" x-text="view"></span>
+      <!-- Admin toggle -->
+      <button @click="toggleAdmin()"
+              :title="adminMode ? 'Admin mode ON — click to disable' : 'Admin mode OFF — click to enable'"
+              :class="adminMode ? 'text-y400 bg-y900 border-y400/25' : 'text-n600 hover:text-n300 border-transparent'"
+              class="p-1 rounded-md border transition-colors ml-1 flex-shrink-0">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- JQL Filter bar -->
+    <div class="flex-1">
+      <div class="relative flex items-center gap-2 h-7 px-3
+                  bg-n800 border border-transparent hover:border-n700
+                  focus-within:border-n600 focus-within:bg-n750
+                  rounded-lg transition-colors duration-100">
+
+        <svg class="w-3.5 h-3.5 text-n600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+        </svg>
+
+        <input class="filter-input flex-1" type="text"
+               x-model="jqlRaw"
+               @input.debounce.250ms="applyJQL()"
+               @keydown.enter="applyJQL()"
+               @keydown.escape.stop="clearJQL()"
+               placeholder='Filter: priority:high assignee:alice type:bug "login"' />
+
+        <button @click="showJQLRef = !showJQLRef"
+                class="text-[10px] text-n600 hover:text-n400 flex-shrink-0 font-medium transition-colors">
+          syntax
+        </button>
+        <button x-show="jqlRaw" @click="clearJQL()"
+                class="text-n600 hover:text-n300 transition-colors flex-shrink-0">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
-      <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-n400">
-        <div><kbd>priority:high</kbd> <span class="ml-1 text-n500">critical / high / medium / low</span></div>
-        <div><kbd>status:in_progress</kbd> <span class="ml-1 text-n500">backlog / in_progress / review / done</span></div>
-        <div><kbd>assignee:alice</kbd> <span class="ml-1 text-n500">partial name match</span></div>
-        <div><kbd>role:developer</kbd> <span class="ml-1 text-n500">or <kbd>role:tester</kbd></span></div>
-        <div><kbd>type:bug</kbd> <span class="ml-1 text-n500">task / story / bug</span></div>
-        <div><kbd>sprint:"Sprint 1"</kbd> <span class="ml-1 text-n500">quote spaces</span></div>
-        <div><kbd>pts:>3</kbd> <span class="ml-1 text-n500">&gt; &lt; &gt;= &lt;= or exact</span></div>
-        <div><kbd>"login page"</kbd> <span class="ml-1 text-n500">title search (≥2 chars)</span></div>
+
+      <!-- JQL syntax reference popover -->
+      <div x-show="showJQLRef" x-cloak @click.outside="showJQLRef=false"
+           class="absolute top-22 left-0 right-0 mx-4 bg-n800 border border-n700
+                  rounded-xl shadow-2xl p-4 z-50 text-xs">
+        <div class="flex items-center justify-between mb-3">
+          <p class="font-semibold text-n100">Filter syntax</p>
+          <button @click="showJQLRef=false" class="text-n500 hover:text-n300">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-n400">
+          <div><kbd>priority:high</kbd> <span class="ml-1 text-n500">critical / high / medium / low</span></div>
+          <div><kbd>status:in_progress</kbd> <span class="ml-1 text-n500">backlog / in_progress / review / done</span></div>
+          <div><kbd>assignee:alice</kbd> <span class="ml-1 text-n500">partial name match</span></div>
+          <div><kbd>role:developer</kbd> <span class="ml-1 text-n500">or <kbd>role:tester</kbd></span></div>
+          <div><kbd>type:bug</kbd> <span class="ml-1 text-n500">task / story / bug</span></div>
+          <div><kbd>sprint:"Sprint 1"</kbd> <span class="ml-1 text-n500">quote spaces</span></div>
+          <div><kbd>pts:>3</kbd> <span class="ml-1 text-n500">&gt; &lt; &gt;= &lt;= or exact</span></div>
+          <div><kbd>"login page"</kbd> <span class="ml-1 text-n500">title search (≥2 chars)</span></div>
+          <div><kbd>project:alpha</kbd> <span class="ml-1 text-n500">partial name match</span></div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Spacer -->
-  <div class="flex-1"></div>
-
-  <!-- Stats -->
-  <div class="hidden lg:flex items-center gap-4 text-[11px] text-n500">
-    <div class="flex items-center gap-1.5">
-      <span x-html="statusIcon('backlog')" class="opacity-60"></span>
-      <span x-text="stats.backlog ?? 0" class="text-n300 font-medium tabular-nums"></span>
-    </div>
-    <div class="flex items-center gap-1.5">
-      <span x-html="statusIcon('in_progress')"></span>
-      <span x-text="stats.in_progress ?? 0" class="text-n300 font-medium tabular-nums"></span>
-    </div>
-    <div class="flex items-center gap-1.5">
-      <span x-html="statusIcon('done')"></span>
-      <span x-text="stats.done ?? 0" class="text-n300 font-medium tabular-nums"></span>
-    </div>
-    <div class="w-px h-4 bg-n700"></div>
-    <div class="flex items-center gap-2">
-      <div class="w-20 h-1 bg-n700 rounded-full overflow-hidden">
-        <div class="h-1 bg-g400 rounded-full transition-all duration-700"
-             :style="`width:${stats.completion_pct??0}%`"></div>
+    <!-- Stats -->
+    <div class="hidden md:flex items-center gap-3 text-[11px] text-n500 flex-shrink-0">
+      <div class="flex items-center gap-1.5">
+        <span x-html="statusIcon('backlog')" class="opacity-60"></span>
+        <span x-text="stats.backlog ?? 0" class="text-n300 font-medium tabular-nums"></span>
       </div>
-      <span class="text-n400 tabular-nums" x-text="`${stats.completion_pct??0}%`"></span>
+      <div class="flex items-center gap-1.5">
+        <span x-html="statusIcon('in_progress')"></span>
+        <span x-text="stats.in_progress ?? 0" class="text-n300 font-medium tabular-nums"></span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span x-html="statusIcon('done')"></span>
+        <span x-text="stats.done ?? 0" class="text-n300 font-medium tabular-nums"></span>
+      </div>
+      <div class="w-px h-4 bg-n700"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-16 h-1 bg-n700 rounded-full overflow-hidden">
+          <div class="h-1 bg-g400 rounded-full transition-all duration-700"
+               :style="`width:${stats.completion_pct??0}%`"></div>
+        </div>
+        <span class="text-n400 tabular-nums" x-text="`${stats.completion_pct??0}%`"></span>
+      </div>
     </div>
-  </div>
 
-  <!-- View toggle -->
-  <div class="flex items-center bg-n800 border border-n700 rounded-lg p-0.5 flex-shrink-0">
-    <button @click="switchView('board')"
-            :class="view==='board' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-100">
-      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16">
-        <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
-        <rect x="9"   y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
-        <rect x="1.5" y="9"   width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
-        <rect x="9"   y="9"   width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+    <!-- New issue -->
+    <button @click="openCreate()"
+            class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
+                   px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
       </svg>
-      Board
-    </button>
-    <button @click="switchView('list')"
-            :class="view==='list' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-100">
-      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16">
-        <line x1="2.5" y1="4.5" x2="13.5" y2="4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        <line x1="2.5" y1="8"   x2="13.5" y2="8"   stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        <line x1="2.5" y1="11.5" x2="13.5" y2="11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-      </svg>
-      List
+      New issue
     </button>
   </div>
 
-  <!-- New issue -->
-  <button @click="openCreate()"
-          class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
-                 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
-    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
-    </svg>
-    New issue
-  </button>
+  <!-- ── Row 2: View toggles · Board controls · Theme ── -->
+  <div class="h-9 flex items-center px-4 gap-2 overflow-x-auto scrollbar-none">
+
+    <!-- View toggle pills -->
+    <div class="flex items-center bg-n800 border border-n700 rounded-lg p-0.5 flex-shrink-0">
+      <button @click="switchView('board')"
+              :class="view==='board' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+          <rect x="9"   y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+          <rect x="1.5" y="9"   width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+          <rect x="9"   y="9"   width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/>
+        </svg>
+        Board
+      </button>
+      <button @click="switchView('list')"
+              :class="view==='list' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <line x1="2.5" y1="4.5" x2="13.5" y2="4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          <line x1="2.5" y1="8"   x2="13.5" y2="8"   stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          <line x1="2.5" y1="11.5" x2="13.5" y2="11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+        List
+      </button>
+      <button @click="switchView('stories')"
+              :class="view==='stories' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.3"/>
+          <line x1="4" y1="5.5" x2="12" y2="5.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="4" y1="8"   x2="12" y2="8"   stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="4" y1="10.5" x2="9" y2="10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        Stories
+      </button>
+      <button @click="switchView('projects')"
+              :class="view==='projects' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <path d="M2 4.5C2 3.67 2.67 3 3.5 3H7l1.5 2H12.5c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5h-9C2.67 13 2 12.33 2 11.5v-7z" stroke="currentColor" stroke-width="1.3" fill="none"/>
+        </svg>
+        Projects
+      </button>
+      <button @click="switchView('sprints')"
+              :class="view==='sprints' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M8 5v3.5l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        Sprints
+      </button>
+      <button @click="switchView('workload')"
+              :class="view==='workload' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <circle cx="5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/>
+          <circle cx="11" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M1.5 13c0-2 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5M8.5 13c0-2 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        Team
+      </button>
+      <button @click="switchView('roadmap')"
+              :class="view==='roadmap' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
+          <line x1="2" y1="5" x2="14" y2="5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <rect x="2" y="7" width="8" height="2" rx="1" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="5" y="10" width="9" height="2" rx="1" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+        Roadmap
+      </button>
+    </div>
+
+    <!-- Spacer -->
+    <div class="flex-1 min-w-0"></div>
+
+    <!-- Saved filters -->
+    <div class="relative flex-shrink-0">
+      <button @click="savedFiltersOpen=!savedFiltersOpen"
+              :class="savedFilters.length ? 'text-acc border-acc/30' : 'text-n500 border-n700'"
+              class="flex items-center gap-1 border text-xs font-medium px-2 py-1 rounded-md transition-colors hover:text-n300 hover:border-n600">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+        </svg>
+        <span x-show="savedFilters.length" x-text="savedFilters.length" class="text-[10px]"></span>
+      </button>
+      <div x-show="savedFiltersOpen" @click.outside="savedFiltersOpen=false" x-cloak
+           class="absolute top-8 right-0 bg-n850 border border-n700 rounded-xl shadow-2xl p-2 z-50 min-w-[200px] space-y-0.5">
+        <div x-show="!savedFilters.length" class="px-3 py-2 text-xs text-n600">No saved filters</div>
+        <template x-for="(f, i) in savedFilters" :key="i">
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-n800 group">
+            <button @click="applySavedFilter(f)" class="flex-1 text-left text-xs text-n200 truncate" x-text="f.name"></button>
+            <button @click="deleteSavedFilter(i)" class="text-n700 hover:text-r400 transition-colors opacity-0 group-hover:opacity-100">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </template>
+        <div class="border-t border-n700 mt-1 pt-1">
+          <button x-show="jqlRaw" @click="saveCurrentFilter()" class="w-full text-left px-3 py-1.5 text-xs text-acc hover:bg-accL rounded-lg transition-colors">
+            + Save current filter
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WIP Limits -->
+    <button x-show="view==='board'" @click="wipEditOpen=true"
+            title="Edit WIP limits"
+            class="flex-shrink-0 flex items-center gap-1 border text-xs font-medium px-2 py-1 rounded-md transition-colors text-n500 border-n700 hover:text-n300 hover:border-n600">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+      </svg>
+      WIP
+    </button>
+
+    <!-- Swimlane toggle -->
+    <button x-show="view==='board'" @click="swimlaneBy = swimlaneBy==='none' ? 'assignee' : swimlaneBy==='assignee' ? 'priority' : 'none'"
+            :title="'Swimlanes: ' + swimlaneBy"
+            :class="swimlaneBy!=='none' ? 'text-acc border-acc/30 bg-accL' : 'text-n500 border-n700'"
+            class="flex-shrink-0 flex items-center gap-1 border text-xs font-medium px-2 py-1 rounded-md transition-colors hover:border-n600">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"/>
+      </svg>
+      <span x-text="swimlaneBy==='none' ? 'Lanes' : swimlaneBy"></span>
+    </button>
+
+    <!-- Export button -->
+    <div class="relative flex-shrink-0">
+      <button @click="exportMenuOpen=!exportMenuOpen"
+              class="flex items-center gap-1 text-n500 border border-n700 hover:text-n300 hover:border-n600
+                     text-xs font-medium px-2 py-1 rounded-md transition-colors">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Export
+      </button>
+      <div x-show="exportMenuOpen" @click.outside="exportMenuOpen=false" x-cloak
+           class="absolute top-8 right-0 bg-n850 border border-n700 rounded-xl shadow-2xl p-1.5 z-50 min-w-[130px] space-y-0.5">
+        <button @click="exportCSV(); exportMenuOpen=false" class="w-full text-left px-3 py-1.5 text-xs text-n300 hover:bg-n800 rounded-lg">Export CSV</button>
+        <button @click="exportJSON(); exportMenuOpen=false" class="w-full text-left px-3 py-1.5 text-xs text-n300 hover:bg-n800 rounded-lg">Export JSON</button>
+      </div>
+    </div>
+
+    <!-- Bulk select toggle -->
+    <button x-show="!bulkMode" @click="bulkMode=true; bulkSelected=[]"
+            class="flex items-center gap-1 text-n500 hover:text-n300 border border-n700 hover:border-n600
+                   text-xs font-medium px-2 py-1 rounded-md transition-colors flex-shrink-0">
+      Select
+    </button>
+    <button x-show="bulkMode" @click="bulkMode=false; bulkSelected=[]"
+            class="flex items-center gap-1 text-r400 border border-r400/30 bg-r900
+                   text-xs font-medium px-2 py-1 rounded-md transition-colors flex-shrink-0">
+      Cancel
+    </button>
+
+    <!-- Search button -->
+    <button @click="searchOpen=true; $nextTick(()=>$refs.searchInput?.focus())"
+            class="p-1 text-n500 hover:text-n300 hover:bg-n700 rounded-md transition-colors flex-shrink-0">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+      </svg>
+    </button>
+
+    <!-- Shortcuts help -->
+    <button @click="shortcutsOpen=true"
+            class="p-1 text-n500 hover:text-n300 hover:bg-n700 rounded-md transition-colors flex-shrink-0"
+            title="Keyboard shortcuts (?)">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+    </button>
+
+    <!-- Admin: Manage Fields -->
+    <button x-show="adminMode" @click="adminPanelOpen=true"
+            class="flex items-center gap-1 text-y400 border border-y400/30 bg-y900 hover:bg-y400/20
+                   text-xs font-medium px-2 py-1 rounded-md transition-colors flex-shrink-0">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+      </svg>
+      Fields
+    </button>
+
+    <!-- Theme toggle -->
+    <button @click="toggleTheme()"
+            :title="darkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+            class="p-1 text-n500 hover:text-n300 hover:bg-n700 rounded-md transition-colors flex-shrink-0">
+      <!-- Sun (shown in dark mode) -->
+      <svg x-show="darkMode" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="5" stroke-width="1.5"/>
+        <path stroke-linecap="round" stroke-width="1.5" d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+      </svg>
+      <!-- Moon (shown in light mode) -->
+      <svg x-show="!darkMode" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+      </svg>
+    </button>
+
+  </div>
+
 </header>
 
 <!-- Active filter chips + unknown key warning -->
@@ -659,111 +1284,146 @@
 <!-- ══════════════════════════════════════════════
      BOARD VIEW
 ══════════════════════════════════════════════ -->
-<main x-show="view==='board'" class="flex-1 flex overflow-x-auto overflow-y-hidden">
+<main x-show="view==='board'" class="flex-1 flex flex-col overflow-hidden">
 
-  <template x-for="col in columns" :key="col.status">
-    <div class="flex flex-col border-r border-n800 w-[272px] min-w-[272px] flex-shrink-0 h-full">
+  <!-- Board: swimlane wrapper -->
+  <div class="flex-1 flex overflow-x-auto overflow-y-hidden">
+  <template x-for="laneKey in swimlaneKeys" :key="laneKey">
+    <div class="flex flex-col" :class="swimlaneBy!=='none' ? 'flex-shrink-0' : 'contents'">
 
-      <!-- Column header -->
-      <div class="flex items-center justify-between px-4 py-3 flex-shrink-0">
-        <div class="flex items-center gap-2">
-          <span x-html="col.icon"></span>
-          <span class="text-[11px] font-semibold text-n400 uppercase tracking-widest" x-text="col.label"></span>
-          <span class="text-[11px] text-n600 tabular-nums font-mono"
-                x-text="(filteredBoard[col.status]||[]).length"></span>
-        </div>
-        <!-- Story points sum -->
-        <span x-show="colPoints(col.status) > 0"
-              class="text-[10px] font-mono text-n600 bg-n800 border border-n700 rounded px-1.5 py-0.5"
-              x-text="colPoints(col.status) + 'p'">
-        </span>
+      <!-- Swimlane label -->
+      <div x-show="swimlaneBy!=='none'"
+           class="swimlane-header"
+           :style="laneHeaderStyle(laneKey)">
+        <span x-show="swimlaneBy==='assignee'" x-html="avatar(laneKey==='Unassigned'?'':laneKey,14)"></span>
+        <span x-text="laneKey"></span>
       </div>
 
-      <!-- Tickets -->
-      <div class="col-scroll px-1.5 pb-2 transition-colors"
-           @dragover.prevent="dragOver($event)"
-           @dragleave.self="dragLeave($event)"
-           @drop.prevent="dropTicket($event, col.status)">
+      <!-- Columns row -->
+      <div class="flex flex-1 overflow-y-hidden">
+      <template x-for="col in columns" :key="col.status">
+        <div class="flex flex-col border-r border-n800 min-w-[220px] flex-1 h-full">
 
-        <template x-for="ticket in (filteredBoard[col.status]||[])" :key="ticket.key">
-          <div class="ticket-card group relative flex gap-0 rounded-md mb-0.5 cursor-pointer card-in overflow-hidden"
-               draggable="true"
-               @dragstart="dragStart($event, ticket)"
-               @dragend="dragEnd($event)"
-               @click="openDetail(ticket)">
+          <!-- Column header (only show for first lane) -->
+          <div x-show="laneKey===swimlaneKeys[0]" class="flex items-center justify-between px-4 py-3 flex-shrink-0">
+            <div class="flex items-center gap-2">
+              <span x-html="col.icon"></span>
+              <span class="text-[11px] font-semibold text-n400 uppercase tracking-widest" x-text="col.label"></span>
+              <!-- Count + WIP indicator -->
+              <span class="text-[11px] tabular-nums font-mono" :class="wipColor(col.status)"
+                    x-text="(filteredBoard[col.status]||[]).length + (wipLimits[col.status] ? '/' + wipLimits[col.status] : '')"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <!-- Story points sum -->
+              <span x-show="colPoints(col.status) > 0"
+                    class="text-[10px] font-mono text-n600 bg-n800 border border-n700 rounded px-1.5 py-0.5"
+                    x-text="colPoints(col.status) + 'p'">
+              </span>
+            </div>
+          </div>
 
-            <!-- Priority left edge -->
-            <div class="pri-edge flex-shrink-0" :class="`pri-edge-${ticket.priority}`"></div>
+          <!-- Tickets -->
+          <div class="col-scroll px-1.5 pb-2 transition-colors"
+               @dragover.prevent="colDragOver($event, col.status)"
+               @dragleave.self="colDragLeave($event)"
+               @drop.prevent="dropTicket($event, col.status)">
 
-            <!-- Card body -->
-            <div class="flex-1 px-3 py-2.5 min-w-0">
-              <!-- Title -->
-              <p class="text-[13px] text-n100 leading-snug font-[450] line-clamp-2 mb-2"
-                 x-text="ticket.title"></p>
+            <template x-for="ticket in (swimlaneBoard(laneKey)[col.status]||[])" :key="ticket.key">
+              <div class="ticket-card group relative flex gap-0 rounded-md mb-0.5 cursor-pointer card-in overflow-hidden"
+                   :class="[bulkMode && bulkSelected.includes(ticket.key) ? 'ring-1 ring-acc bg-accL' : '', ageClass(ticket)]"
+                   draggable="true"
+                   :data-key="ticket.key"
+                   @dragstart="dragStart($event, ticket)"
+                   @dragend="dragEnd($event)"
+                   @dragover.prevent="cardDragOver($event)"
+                   @dragleave="cardDragLeave($event)"
+                   @click="bulkMode ? toggleBulkSelect(ticket.key) : openDetail(ticket)"
+                   @dblclick.stop="window.open('/tickets/'+ticket.key,'_blank')">
 
-              <!-- Meta row -->
-              <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- Priority left edge -->
+                <div class="pri-edge flex-shrink-0" :class="`pri-edge-${ticket.priority}`"></div>
 
-                <!-- Key -->
-                <span class="font-mono text-[10px] text-n600" x-text="ticket.key"></span>
+                <!-- Bulk checkbox -->
+                <div x-show="bulkMode" class="flex items-center pl-2 pt-2.5 flex-shrink-0">
+                  <div class="w-3.5 h-3.5 rounded border-[1.5px] flex items-center justify-center"
+                       :class="bulkSelected.includes(ticket.key) ? 'bg-acc border-acc' : 'border-n500'">
+                    <svg x-show="bulkSelected.includes(ticket.key)" class="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 12 12">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 6l3 3 5-5"/>
+                    </svg>
+                  </div>
+                </div>
 
-                <span class="text-n700">·</span>
+                <!-- Card body -->
+                <div class="flex-1 px-3 py-2.5 min-w-0">
+                  <!-- Title -->
+                  <p class="text-[13px] text-n100 leading-snug font-[450] line-clamp-2 mb-2"
+                     x-text="ticket.title"></p>
 
-                <!-- Priority icon -->
-                <span x-html="priorityIcon(ticket.priority)" class="flex-shrink-0 opacity-80"></span>
+                  <!-- Meta row -->
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="font-mono text-[10px] text-n600" x-text="ticket.key"></span>
+                    <span class="text-n700">·</span>
+                    <span x-html="priorityIcon(ticket.priority)" class="flex-shrink-0 opacity-80"></span>
+                    <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
+                    <span x-show="ticket.role" class="text-[10px] text-n600 font-medium"
+                          x-text="ticket.role === 'developer' ? 'dev' : 'qa'"></span>
+                    <!-- Age badge -->
+                    <template x-if="ageBadge(ticket)">
+                      <span class="age-badge" :class="ageBadge(ticket)?.cls" x-text="ageBadge(ticket)?.label"></span>
+                    </template>
+                    <div class="flex-1"></div>
+                    <span x-show="ticket.assignee" x-html="avatar(ticket.assignee, 16)" :title="ticket.assignee"></span>
+                    <span x-show="ticket.story_points"
+                          class="text-[10px] font-mono text-n600 bg-n750 rounded px-1"
+                          x-text="ticket.story_points + 'p'"></span>
+                  </div>
+                </div>
 
-                <!-- Type badge -->
-                <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
-
-                <!-- Role indicator -->
-                <span x-show="ticket.role"
-                      class="text-[10px] text-n600 font-medium"
-                      x-text="ticket.role === 'developer' ? 'dev' : 'qa'"></span>
-
-                <!-- Spacer -->
-                <div class="flex-1"></div>
-
-                <!-- Assignee avatar -->
-                <span x-show="ticket.assignee"
-                      x-html="avatar(ticket.assignee, 16)"
-                      :title="ticket.assignee"></span>
-
-                <!-- Points -->
-                <span x-show="ticket.story_points"
-                      class="text-[10px] font-mono text-n600 bg-n750 rounded px-1"
-                      x-text="ticket.story_points + 'p'"></span>
+                <!-- Quick actions (hover) -->
+                <div class="card-actions" @click.stop>
+                  <!-- Move to next status -->
+                  <template x-if="ticket.status !== 'done'">
+                    <button @click.stop="moveTicket(ticket.key, {backlog:'in_progress',in_progress:'review',review:'done'}[ticket.status])"
+                            class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-acc hover:border-acc hover:text-white"
+                            title="Move forward">→</button>
+                  </template>
+                  <button @click.stop="openDetail(ticket)"
+                          class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-n600 hover:text-n100"
+                          title="Open detail">⋯</button>
+                </div>
 
               </div>
+            </template>
+
+            <!-- Empty state -->
+            <div x-show="!(swimlaneBoard(laneKey)[col.status]||[]).length"
+                 class="flex flex-col items-center justify-center py-10 gap-2 select-none">
+              <svg class="w-6 h-6 text-n700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              <span class="text-[11px] text-n700">No issues</span>
             </div>
 
+            <!-- Add issue button -->
+            <button x-show="laneKey===swimlaneKeys[0]" @click="openCreate()"
+                    class="w-full flex items-center gap-1.5 px-3 py-2 mt-1 rounded-md text-n700
+                           hover:text-n400 hover:bg-n800 transition-colors text-xs group">
+              <svg class="w-3.5 h-3.5 group-hover:text-acc transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add issue
+            </button>
+
           </div>
-        </template>
-
-        <!-- Empty state -->
-        <div x-show="!(filteredBoard[col.status]||[]).length"
-             class="flex flex-col items-center justify-center py-14 gap-2 select-none">
-          <svg class="w-7 h-7 text-n700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-          <span class="text-[11px] text-n700">No issues</span>
         </div>
-
-        <!-- Add issue button at bottom of column -->
-        <button @click="openCreate()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 mt-1 rounded-md text-n700
-                       hover:text-n400 hover:bg-n800 transition-colors text-xs group">
-          <svg class="w-3.5 h-3.5 group-hover:text-acc transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-          </svg>
-          Add issue
-        </button>
-
-      </div>
+      </template>
+      </div><!-- end columns row -->
     </div>
-  </template>
+  </template><!-- end lanes -->
 
   <div class="min-w-4 flex-shrink-0"></div>
+  </div><!-- end board scroll -->
 </main>
 
 <!-- ══════════════════════════════════════════════
@@ -774,6 +1434,12 @@
     <table class="w-full border-collapse text-sm">
       <thead class="sticky top-0 z-10 bg-n900">
         <tr class="border-b border-n800">
+          <th x-show="bulkMode" class="px-4 py-2.5 w-10">
+            <input type="checkbox"
+                   :checked="listTickets.length > 0 && listTickets.every(t => bulkSelected.includes(t.key))"
+                   @change="$event.target.checked ? listTickets.forEach(t => { if (!bulkSelected.includes(t.key)) bulkSelected.push(t.key) }) : (bulkSelected = bulkSelected.filter(k => !listTickets.map(t=>t.key).includes(k)))"
+                   class="rounded" />
+          </th>
           <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-24">Key</th>
           <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest">Title</th>
           <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-32">Status</th>
@@ -785,7 +1451,13 @@
       <tbody>
         <template x-for="ticket in listTickets" :key="ticket.key">
           <tr class="border-b border-n800/50 hover:bg-n800/40 cursor-pointer transition-colors duration-75 group"
-              @click="openDetail(ticket)">
+              :class="bulkMode && bulkSelected.includes(ticket.key) ? 'bg-accL' : ''"
+              @click="bulkMode ? toggleBulkSelect(ticket.key) : openDetail(ticket)"
+              @dblclick.stop="window.open('/tickets/'+ticket.key,'_blank')">
+            <td x-show="bulkMode" class="px-4 py-2.5">
+              <input type="checkbox" :checked="bulkSelected.includes(ticket.key)"
+                     @click.stop="toggleBulkSelect(ticket.key)" class="rounded" />
+            </td>
             <td class="px-4 py-2.5">
               <span class="font-mono text-[10px] text-n600 group-hover:text-n400 transition-colors"
                     x-text="ticket.key"></span>
@@ -853,13 +1525,648 @@
   </div>
 </main>
 
+<!-- ══════════════════════════════════════════════
+     STORIES VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='stories'" x-cloak class="flex-1 flex flex-col overflow-hidden">
+  <div class="flex-1 overflow-auto">
+    <table class="w-full border-collapse text-sm">
+      <thead class="sticky top-0 z-10 bg-n900">
+        <tr class="border-b border-n800">
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-24">Key</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest">Title</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-32">Status</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-28">Assignee</th>
+          <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-32">Project</th>
+          <th class="text-right px-4 py-2.5 text-[10px] font-semibold text-n600 uppercase tracking-widest w-14">Pts</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="ticket in storyTickets" :key="ticket.key">
+          <tr class="border-b border-n800/50 hover:bg-n800/40 cursor-pointer transition-colors duration-75 group"
+              @click="openDetail(ticket)"
+              @dblclick.stop="window.open('/tickets/'+ticket.key,'_blank')">
+            <td class="px-4 py-2.5">
+              <span class="font-mono text-[10px] text-n600 group-hover:text-n400 transition-colors" x-text="ticket.key"></span>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <div class="w-0.5 h-3.5 rounded-full flex-shrink-0" :class="`pri-edge-${ticket.priority}`" style="min-width:2px"></div>
+                <span x-html="typeIcon(ticket.ticket_type)" class="flex-shrink-0"></span>
+                <span class="text-[13px] text-n100 font-[450]" x-text="ticket.title"></span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-1.5">
+                <span x-html="statusIcon(ticket.status)"></span>
+                <span class="text-[12px] text-n400 capitalize" x-text="ticket.status.replace('_',' ')"></span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-1.5" x-show="ticket.assignee">
+                <span x-html="avatar(ticket.assignee, 16)"></span>
+                <span class="text-[12px] text-n300" x-text="ticket.assignee"></span>
+              </div>
+              <span x-show="!ticket.assignee" class="text-n700 text-xs">—</span>
+            </td>
+            <td class="px-4 py-2.5 text-[12px] text-n500" x-text="ticket.project||'—'"></td>
+            <td class="px-4 py-2.5 text-right font-mono text-[12px] text-n500" x-text="ticket.story_points||'—'"></td>
+          </tr>
+        </template>
+        <tr x-show="!storyTickets.length">
+          <td colspan="6" class="py-24">
+            <div class="flex flex-col items-center gap-3 text-n700">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="3" stroke-width="1" stroke="currentColor" fill="none"/>
+                <path stroke-linecap="round" stroke-width="1" d="M7 8h10M7 12h10M7 16h6"/>
+              </svg>
+              <p class="text-sm">No stories found</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════════
+     PROJECTS VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='projects'" x-cloak class="flex-1 overflow-auto p-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-sm font-semibold text-n200">Projects</h2>
+      <button @click="openCreateProject()"
+              class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
+                     px-3 py-1.5 rounded-lg transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        </svg>
+        New project
+      </button>
+    </div>
+
+    <div x-show="!projects.length" class="flex flex-col items-center gap-3 text-n700 py-24">
+      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+              d="M3 7.5C3 6.67 3.67 6 4.5 6H9l2 2.5h8.5c.83 0 1.5.67 1.5 1.5V18c0 .83-.67 1.5-1.5 1.5h-16C3.67 19.5 3 18.83 3 18V7.5z"/>
+      </svg>
+      <p class="text-sm">No projects yet</p>
+      <button @click="openCreateProject()" class="text-xs text-acc hover:underline">Create your first project</button>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <template x-for="proj in projects" :key="proj.id">
+        <div class="bg-n850 border border-n700 rounded-xl p-5 hover:border-n600 transition-colors cursor-pointer group"
+             @click="filterByProject(proj.name)">
+          <!-- Project color bar + name -->
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                   :style="`background:${proj.color}18;border:1px solid ${proj.color}30`">
+                <svg class="w-4 h-4" :style="`color:${proj.color}`" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M3 7.5C3 6.67 3.67 6 4.5 6H9l2 2.5h8.5c.83 0 1.5.67 1.5 1.5V18c0 .83-.67 1.5-1.5 1.5h-16C3.67 19.5 3 18.83 3 18V7.5z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-n100 group-hover:text-white transition-colors" x-text="proj.name"></p>
+                <p class="text-[11px] text-n600 mt-0.5" x-text="proj.status"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <p x-show="proj.description" class="text-[12px] text-n500 mb-4 line-clamp-2" x-text="proj.description"></p>
+
+          <!-- Progress bar -->
+          <div class="mb-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-n600" x-text="`${proj.done_count||0} / ${proj.ticket_count||0} done`"></span>
+              <span class="text-[11px] text-n600 font-mono"
+                    x-text="`${proj.ticket_count ? Math.round((proj.done_count||0)/proj.ticket_count*100) : 0}%`"></span>
+            </div>
+            <div class="h-1 bg-n700 rounded-full overflow-hidden">
+              <div class="h-1 rounded-full transition-all duration-700"
+                   :style="`width:${proj.ticket_count ? Math.round((proj.done_count||0)/proj.ticket_count*100) : 0}%;background:${proj.color}`"></div>
+            </div>
+          </div>
+
+          <!-- Ticket count -->
+          <div class="flex items-center gap-1.5 text-[11px] text-n600">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <span x-text="`${proj.ticket_count||0} issue${proj.ticket_count===1?'':'s'}`"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════════
+     SPRINTS VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='sprints'" x-cloak class="flex-1 overflow-auto p-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-sm font-semibold text-n200">Sprints</h2>
+      <button @click="sprintFormOpen=true; sprintFormError=''"
+              class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
+                     px-3 py-1.5 rounded-lg transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        </svg>
+        New sprint
+      </button>
+    </div>
+
+    <div x-show="!sprints.length" class="flex flex-col items-center gap-3 text-n700 py-24">
+      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1"/>
+        <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+      <p class="text-sm">No sprints yet</p>
+      <button @click="sprintFormOpen=true; sprintFormError=''" class="text-xs text-acc hover:underline">Create your first sprint</button>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <template x-for="sp in sprints" :key="sp.id">
+        <div class="bg-n850 border border-n700 rounded-xl p-5 hover:border-n600 transition-colors">
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-n100" x-text="sp.name"></p>
+              <p x-show="sp.goal" class="text-[12px] text-n500 mt-0.5" x-text="sp.goal"></p>
+            </div>
+            <span class="text-[10px] font-medium px-2 py-0.5 rounded-full border flex-shrink-0"
+                  :class="sp.status==='active' ? 'bg-g900 text-g400 border-g400/25' : 'bg-n700 text-n500 border-n600'"
+                  x-text="sp.status"></span>
+          </div>
+
+          <p class="text-[11px] text-n600 mb-3"
+             x-show="sp.start_date || sp.end_date"
+             x-text="(sp.start_date||'?').slice(0,10) + ' → ' + (sp.end_date||'?').slice(0,10)"></p>
+
+          <template x-if="sprintStats[sp.id]">
+            <div class="mb-3">
+              <div class="flex items-center justify-between mb-1.5 text-[11px] text-n600">
+                <span x-text="`${sprintStats[sp.id].done_tickets||0} / ${sprintStats[sp.id].total_tickets||0} done`"></span>
+                <span class="font-mono" x-text="`${sprintStats[sp.id].total_points||0}p`"></span>
+              </div>
+              <div class="h-1 bg-n700 rounded-full overflow-hidden">
+                <div class="h-1 bg-acc rounded-full transition-all duration-700"
+                     :style="`width:${sprintStats[sp.id].completion_pct||0}%`"></div>
+              </div>
+            </div>
+          </template>
+
+          <div class="flex items-center gap-2 mt-3 flex-wrap">
+            <button @click="jqlRaw='sprint:&quot;'+sp.name+'&quot;'; applyJQL(); switchView('board')"
+                    class="text-[11px] text-acc hover:underline">View tickets</button>
+            <button x-show="sp.status==='active'" @click="closeSprint(sp.id)"
+                    class="text-[11px] text-n500 hover:text-y400 transition-colors">Close sprint</button>
+            <button @click="deleteSprint(sp.id)"
+                    class="text-[11px] text-n600 hover:text-r400 transition-colors ml-auto">Delete</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</main>
+
+<!-- ── New Sprint Modal ── -->
+<div x-show="sprintFormOpen" x-cloak
+     class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
+     @keydown.escape.window="sprintFormOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/60" @click="sprintFormOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[420px] z-10">
+    <div class="px-5 pt-5 pb-4 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-n100">New sprint</h2>
+        <button @click="sprintFormOpen=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <input type="text" x-model="newSprint.name" placeholder="Sprint name *"
+             class="w-full bg-transparent text-n50 text-base font-semibold placeholder-n600 border-none focus:outline-none"/>
+      <textarea x-model="newSprint.goal" rows="2" placeholder="Sprint goal (optional)"
+                class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                       focus:outline-none focus:border-n500 placeholder-n600 resize-none"></textarea>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1">Start date</label>
+          <input type="date" x-model="newSprint.start_date"
+                 class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-n500"/>
+        </div>
+        <div>
+          <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-1">End date</label>
+          <input type="date" x-model="newSprint.end_date"
+                 class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-n500"/>
+        </div>
+      </div>
+      <p x-show="sprintFormError" x-text="sprintFormError"
+         class="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2"></p>
+      <div class="flex items-center justify-end gap-2 pt-1 border-t border-n700">
+        <button @click="sprintFormOpen=false; sprintFormError=''" class="px-3.5 py-1.5 text-xs font-medium text-n400 hover:text-n100 hover:bg-n700 rounded-lg transition-colors">Cancel</button>
+        <button @click="createSprint()" :disabled="sprintFormLoading"
+                :class="sprintFormLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accH'"
+                class="px-4 py-1.5 text-xs font-semibold text-white bg-acc rounded-lg transition-colors">
+          <span x-show="!sprintFormLoading">Create sprint</span>
+          <span x-show="sprintFormLoading">Creating…</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     WORKLOAD VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='workload'" x-cloak class="flex-1 overflow-auto p-6">
+  <div class="max-w-3xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-sm font-semibold text-n200">Team Workload</h2>
+      <button @click="loadWorkload()" class="text-xs text-n500 hover:text-n300 transition-colors">↻ Refresh</button>
+    </div>
+
+    <div x-show="!workload.length" class="flex flex-col items-center gap-3 text-n700 py-24">
+      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      <p class="text-sm">No assignee data yet</p>
+    </div>
+
+    <div class="space-y-3">
+      <template x-for="person in workload" :key="person.assignee">
+        <div class="bg-n850 border border-n700 rounded-xl p-4 hover:border-n600 transition-colors cursor-pointer"
+             @click="jqlRaw='assignee:'+person.assignee; applyJQL(); switchView('board')">
+          <div class="flex items-center gap-3 mb-3">
+            <span x-html="avatar(person.assignee, 28)"></span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-n100" x-text="person.assignee"></p>
+              <p class="text-[11px] text-n500" x-text="`${person.total} issues · ${person.story_points_total||0}p total`"></p>
+            </div>
+            <div class="flex items-center gap-2 text-[11px]">
+              <span class="bg-n700 text-n400 px-2 py-0.5 rounded-full" x-text="person.by_status.backlog||0"></span>
+              <span class="bg-accL text-acc px-2 py-0.5 rounded-full font-medium" x-text="person.by_status.in_progress||0"></span>
+              <span class="bg-y900 text-y400 px-2 py-0.5 rounded-full" x-text="person.by_status.review||0"></span>
+              <span class="bg-g900 text-g400 px-2 py-0.5 rounded-full" x-text="person.by_status.done||0"></span>
+            </div>
+          </div>
+          <!-- Stacked progress bar -->
+          <div class="h-1.5 rounded-full overflow-hidden flex gap-px bg-n700">
+            <div class="workload-bar bg-n600" :style="`width:${person.total ? (person.by_status.backlog||0)/person.total*100 : 0}%`"></div>
+            <div class="workload-bar bg-acc" :style="`width:${person.total ? (person.by_status.in_progress||0)/person.total*100 : 0}%`"></div>
+            <div class="workload-bar bg-y400" :style="`width:${person.total ? (person.by_status.review||0)/person.total*100 : 0}%`"></div>
+            <div class="workload-bar bg-g400" :style="`width:${person.total ? (person.by_status.done||0)/person.total*100 : 0}%`"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════════
+     ROADMAP VIEW
+══════════════════════════════════════════════ -->
+<main x-show="view==='roadmap'" x-cloak class="flex-1 overflow-auto p-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-sm font-semibold text-n200">Roadmap</h2>
+      <button @click="loadRoadmap()" class="text-xs text-n500 hover:text-n300 transition-colors">↻ Refresh</button>
+    </div>
+
+    <div x-show="!sprints.filter(s=>s.start_date&&s.end_date).length" class="flex flex-col items-center gap-3 text-n700 py-24">
+      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <p class="text-sm">No sprints with dates yet</p>
+      <button @click="switchView('sprints')" class="text-xs text-acc hover:underline">Go to Sprints</button>
+    </div>
+
+    <template x-if="sprints.filter(s=>s.start_date&&s.end_date).length && roadmapStart && roadmapEnd">
+      <div>
+        <!-- Month headers -->
+        <div class="relative h-6 mb-2 ml-36">
+          <template x-for="sp in sprints.filter(s=>s.start_date&&s.end_date)" :key="sp.id + '-h'">
+            <div class="absolute text-[10px] text-n600"
+                 :style="`left:${roadmapSprintLeft(sp, (new Date(roadmapEnd)-new Date(roadmapStart))/86400000, roadmapStart)}%;`"
+                 x-text="sp.start_date?.slice(0,7)"></div>
+          </template>
+        </div>
+
+        <!-- Sprint bars -->
+        <div class="space-y-2">
+          <template x-for="sp in sprints.filter(s=>s.start_date&&s.end_date)" :key="sp.id">
+            <div class="flex items-center gap-3">
+              <div class="w-36 flex-shrink-0 text-right">
+                <p class="text-[12px] font-medium text-n200 truncate" x-text="sp.name"></p>
+                <p class="text-[10px] text-n600" :class="sp.status==='active'?'text-g400':''" x-text="sp.status"></p>
+              </div>
+              <div class="flex-1 relative h-8">
+                <div class="roadmap-bar flex items-center px-2"
+                     :style="`left:${roadmapSprintLeft(sp, (new Date(roadmapEnd)-new Date(roadmapStart))/86400000, roadmapStart)}%;width:${Math.max(2,roadmapSprintWidth(sp, (new Date(roadmapEnd)-new Date(roadmapStart))/86400000))}%;background:${sp.status==='active'?'#5e6ad2':sp.status==='closed'?'#2a2a2e':'#3a3a3f'};border:1px solid ${sp.status==='active'?'#5e6ad2':'#3a3a3f'}`"
+                     @click="jqlRaw='sprint:&quot;'+sp.name+'&quot;'; applyJQL(); switchView('board')">
+                  <span class="text-[10px] font-medium truncate"
+                        :style="`color:${sp.status==='active'?'#fff':'#94949d'}`"
+                        x-show="roadmapSprintWidth(sp, (new Date(roadmapEnd)-new Date(roadmapStart))/86400000) > 8"
+                        x-text="sprintStats[sp.id] ? `${sprintStats[sp.id].done_tickets||0}/${sprintStats[sp.id].total_tickets||0}` : ''"></span>
+                </div>
+                <!-- Today marker -->
+                <template x-if="roadmapStart && roadmapEnd">
+                  <div class="absolute top-0 bottom-0 w-px bg-r400 z-10"
+                       :style="`left:${Math.min(100,Math.max(0,(Date.now()-new Date(roadmapStart).getTime())/(new Date(roadmapEnd)-new Date(roadmapStart))*100))}%`">
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex items-center gap-4 mt-6 text-[11px] text-n600">
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-acc"></div> Active</div>
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-n700"></div> Planned</div>
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-n800 border border-n700"></div> Closed</div>
+          <div class="flex items-center gap-1.5"><div class="w-px h-3 bg-r400"></div> Today</div>
+        </div>
+      </div>
+    </template>
+  </div>
+</main>
+
+<!-- Bulk action bar -->
+<div x-show="bulkSelected.length > 0" x-cloak
+     class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3
+            bg-n800 border border-n700 rounded-xl shadow-2xl px-4 py-2.5">
+  <span class="text-xs text-n300 font-medium" x-text="bulkSelected.length + ' selected'"></span>
+  <div class="w-px h-4 bg-n700"></div>
+  <div class="flex items-center gap-1.5">
+    <span class="text-xs text-n500">Move to:</span>
+    <select @change="bulkMove($event.target.value); $event.target.value=''"
+            class="bg-n750 border border-n700 text-n200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-n500">
+      <option value="">—</option>
+      <option value="backlog">Backlog</option>
+      <option value="in_progress">In Progress</option>
+      <option value="review">Review</option>
+      <option value="done">Done</option>
+    </select>
+  </div>
+  <button @click="bulkDelete()"
+          class="px-3 py-1 text-xs font-medium text-r400 hover:bg-r900 rounded-lg transition-colors">
+    Delete
+  </button>
+  <button @click="bulkSelected=[]"
+          class="px-3 py-1 text-xs font-medium text-n500 hover:text-n200 hover:bg-n700 rounded-lg transition-colors">
+    Clear
+  </button>
+</div>
+
+<!-- ── Create Project Modal ── -->
+<div x-show="projectFormOpen" x-cloak
+     class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
+     @keydown.escape.window="projectFormOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/60" @click="projectFormOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[420px] z-10">
+    <div class="px-5 pt-5 pb-4 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-n100">New project</h2>
+        <button @click="projectFormOpen=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <input type="text" x-model="projectForm.name" placeholder="Project name"
+             class="w-full bg-transparent text-n50 text-base font-semibold placeholder-n600 border-none focus:outline-none"/>
+      <textarea x-model="projectForm.description" rows="2" placeholder="Description (optional)"
+                class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                       focus:outline-none focus:border-n500 placeholder-n600 resize-none"></textarea>
+      <div>
+        <label class="block text-[11px] font-medium text-n500 uppercase tracking-wider mb-2">Color</label>
+        <div class="flex gap-2 flex-wrap">
+          <template x-for="c in ['#5e6ad2','#fb923c','#4ade80','#f87171','#fbbf24','#a78bfa','#22d3ee','#ec4899']" :key="c">
+            <button @click="projectForm.color=c"
+                    :style="`background:${c}18;border-color:${projectForm.color===c ? c : c+'20'}`"
+                    class="w-7 h-7 rounded-lg border-2 transition-all"
+                    :class="projectForm.color===c ? 'ring-1 ring-offset-1 ring-offset-n850' : ''">
+              <div class="w-3 h-3 rounded-full mx-auto" :style="`background:${c}`"></div>
+            </button>
+          </template>
+        </div>
+      </div>
+      <p x-show="projectFormError" class="text-xs text-r400 bg-r900 border border-r400/20 rounded-lg px-3 py-2" x-text="projectFormError"></p>
+      <div class="flex items-center justify-end gap-2 pt-1 border-t border-n700">
+        <button @click="projectFormOpen=false" class="px-3.5 py-1.5 text-xs font-medium text-n400 hover:text-n100 hover:bg-n700 rounded-lg transition-colors">Cancel</button>
+        <button @click="submitProject()" :disabled="projectFormLoading"
+                class="px-4 py-1.5 text-xs font-semibold text-white bg-acc hover:bg-accH rounded-lg transition-colors disabled:opacity-40">
+          Create project
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Keyboard shortcut footer -->
 <div class="fixed bottom-3 left-4 hidden xl:flex items-center gap-3 text-[10px] text-n700 pointer-events-none select-none z-20">
   <span><kbd>N</kbd> new</span>
   <span><kbd>B</kbd> board</span>
   <span><kbd>L</kbd> list</span>
+  <span><kbd>S</kbd> stories</span>
+  <span><kbd>P</kbd> projects</span>
+  <span><kbd>R</kbd> sprints</span>
+  <span><kbd>W</kbd> team</span>
+  <span><kbd>M</kbd> roadmap</span>
   <span><kbd>/</kbd> filter</span>
+  <span><kbd>⌘K</kbd> search</span>
+  <span><kbd>E</kbd> save filter</span>
+  <span><kbd>?</kbd> shortcuts</span>
   <span><kbd>Esc</kbd> close</span>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     ADMIN PANEL — Custom Fields
+══════════════════════════════════════════════ -->
+<div x-show="adminPanelOpen" x-cloak
+     class="fixed inset-0 z-50 flex items-start justify-center pt-[6vh]"
+     @keydown.escape.window="adminPanelOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/60" @click="adminPanelOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[560px] max-h-[80vh] flex flex-col z-10">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-n700 flex-shrink-0">
+      <div>
+        <h2 class="text-sm font-semibold text-n100">Custom Fields</h2>
+        <p class="text-[11px] text-n500 mt-0.5">Define extra fields that appear on all tickets</p>
+      </div>
+      <button @click="adminPanelOpen=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Field list -->
+    <div class="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+      <div x-show="!customFieldDefs.length" class="text-center py-8 text-n600 text-sm">
+        No custom fields yet. Add one below.
+      </div>
+      <template x-for="f in customFieldDefs" :key="f.id">
+        <div class="bg-n800 border border-n700 rounded-xl overflow-hidden"
+             :class="editingFieldId===f.id ? 'border-n600' : ''">
+
+          <!-- Row (collapsed) -->
+          <div class="flex items-center gap-3 px-4 py-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[13px] font-medium text-n100" x-text="f.name"></span>
+                <span class="text-[10px] font-mono text-n600 bg-n750 border border-n700 rounded px-1.5 py-0.5" x-text="f.key"></span>
+                <span class="text-[10px] capitalize"
+                      :class="{
+                        'text-acc': f.field_type==='text',
+                        'text-g400': f.field_type==='checkbox',
+                        'text-y400': f.field_type==='select',
+                        'text-o400': f.field_type==='number'
+                      }"
+                      x-text="f.field_type"></span>
+                <span x-show="f.required" class="text-[10px] text-r400">required</span>
+              </div>
+              <p x-show="f.options?.length && editingFieldId!==f.id"
+                 class="text-[11px] text-n600 mt-0.5"
+                 x-text="(f.options||[]).join(', ')"></p>
+            </div>
+            <!-- Edit toggle -->
+            <button @click="editingFieldId = editingFieldId===f.id ? null : f.id; startEditField(f)"
+                    :class="editingFieldId===f.id ? 'text-acc bg-accL' : 'text-n600 hover:text-n300 hover:bg-n700'"
+                    class="p-1.5 rounded-md transition-colors flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+            <!-- Delete -->
+            <button @click="deleteCustomField(f.id)"
+                    class="p-1.5 text-n600 hover:text-r400 hover:bg-r900 rounded-md transition-colors flex-shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Expanded edit panel -->
+          <div x-show="editingFieldId===f.id" class="border-t border-n700 px-4 py-3 space-y-3">
+
+            <!-- Name + required -->
+            <div class="flex items-center gap-3">
+              <div class="flex-1">
+                <label class="block text-[10px] font-medium text-n600 uppercase tracking-wider mb-1">Display name</label>
+                <input type="text" x-model="editField.name"
+                       class="w-full bg-n750 border border-n700 text-n200 text-xs rounded-lg px-3 py-1.5
+                              focus:outline-none focus:border-n500"/>
+              </div>
+              <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-n400 mt-4 flex-shrink-0">
+                <input type="checkbox" x-model="editField.required" class="rounded"/>
+                Required
+              </label>
+            </div>
+
+            <!-- Options editor (select only) -->
+            <div x-show="f.field_type==='select'" class="space-y-2">
+              <label class="block text-[10px] font-medium text-n600 uppercase tracking-wider">Options</label>
+
+              <!-- Existing options as chips -->
+              <div class="flex flex-wrap gap-1.5 min-h-[28px]">
+                <template x-for="(opt, idx) in editField.options" :key="idx">
+                  <span class="inline-flex items-center gap-1 bg-n750 border border-n700 text-n300 text-[11px]
+                               rounded-full px-2.5 py-1">
+                    <span x-text="opt"></span>
+                    <button @click="editField.options.splice(idx,1)"
+                            class="text-n600 hover:text-r400 transition-colors ml-0.5">
+                      <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </span>
+                </template>
+                <span x-show="!editField.options?.length" class="text-[11px] text-n700 italic">No options yet</span>
+              </div>
+
+              <!-- Add option input -->
+              <div class="flex items-center gap-2">
+                <input type="text" x-model="editField.newOption"
+                       placeholder="Add option…"
+                       @keydown.enter.prevent="addFieldOption()"
+                       class="flex-1 bg-n750 border border-n700 text-n200 text-xs rounded-lg px-3 py-1.5
+                              focus:outline-none focus:border-n500 placeholder-n600"/>
+                <button @click="addFieldOption()"
+                        class="px-3 py-1.5 text-xs font-medium text-n300 bg-n750 border border-n700
+                               hover:border-n500 rounded-lg transition-colors">
+                  Add
+                </button>
+              </div>
+            </div>
+
+            <!-- Save / cancel -->
+            <div class="flex items-center justify-end gap-2 pt-1">
+              <button @click="editingFieldId=null"
+                      class="px-3 py-1.5 text-xs text-n500 hover:text-n200 hover:bg-n700 rounded-lg transition-colors">
+                Cancel
+              </button>
+              <button @click="saveEditField(f.id)"
+                      class="px-4 py-1.5 text-xs font-semibold text-white bg-acc hover:bg-accH rounded-lg transition-colors">
+                Save
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </template>
+    </div>
+
+    <!-- Add field form -->
+    <div class="border-t border-n700 px-5 py-4 flex-shrink-0 space-y-3">
+      <p class="text-[11px] font-semibold text-n400 uppercase tracking-wider">Add field</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[10px] font-medium text-n600 uppercase tracking-wider mb-1">Name</label>
+          <input type="text" x-model="newField.name" placeholder="e.g. Environment"
+                 class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                        focus:outline-none focus:border-n500 placeholder-n600"/>
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-n600 uppercase tracking-wider mb-1">Type</label>
+          <select x-model="newField.field_type"
+                  class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-n500">
+            <option value="text">Text</option>
+            <option value="number">Number</option>
+            <option value="select">Select</option>
+            <option value="checkbox">Checkbox</option>
+          </select>
+        </div>
+      </div>
+      <div x-show="newField.field_type==='select'">
+        <label class="block text-[10px] font-medium text-n600 uppercase tracking-wider mb-1">Options (comma-separated)</label>
+        <input type="text" x-model="newField.optionsRaw" placeholder="dev, staging, prod"
+               class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg px-3 py-2
+                      focus:outline-none focus:border-n500 placeholder-n600"/>
+      </div>
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 cursor-pointer text-xs text-n400">
+          <input type="checkbox" x-model="newField.required" class="rounded"/>
+          Required
+        </label>
+        <button @click="createCustomField()"
+                class="px-4 py-1.5 text-xs font-semibold text-white bg-acc hover:bg-accH rounded-lg transition-colors">
+          Add field
+        </button>
+      </div>
+      <p x-show="adminFieldError" class="text-xs text-r400" x-text="adminFieldError"></p>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -875,6 +2182,7 @@ const KNOWN_KEYS = new Set([
   'type',
   'status',
   'pts','points',
+  'project','proj',
 ]);
 
 function svgStatusIcon(status) {
@@ -896,9 +2204,63 @@ function app() {
     currentTicket: null, detailOpen: false,
     formOpen: false, formLoading: false, formError: '', editKey: null,
     draggedTicket: null,
+    _dropTargetKey: null,
+    _dropPosition: 'after',
     jqlRaw: '', parsedJQL: {}, unknownKeys: [],
     showJQLRef: false,
     toasts: [],
+    projects: [],
+    storyTickets: [],
+    projectFormOpen: false,
+    projectFormLoading: false,
+    projectFormError: '',
+    projectForm: { name: '', description: '', color: '#5e6ad2' },
+    adminMode: false,
+    adminPanelOpen: false,
+    customFieldDefs: [],
+    newField: { name: '', field_type: 'text', optionsRaw: '', required: false },
+    adminFieldError: '',
+    editingFieldId: null,
+    editField: { name: '', required: false, options: [], newOption: '' },
+    // Modals & overlays
+    shortcutsOpen: false, exportMenuOpen: false,
+    searchOpen: false, searchQuery: '', searchResults: [], searchLoading: false, searchTimer: null,
+    // Comments
+    comments: [], commentsLoading: false, commentBody: '', commentAuthor: '',
+    // Sprints
+    sprints: [], sprintStats: {}, sprintFormOpen: false,
+    sprintForm: { name: '', goal: '', start_date: '', end_date: '' },
+    newSprint: { name: '', goal: '', start_date: '', end_date: '' },
+    sprintFormError: '', sprintFormLoading: false,
+    // Bulk actions
+    bulkMode: false, bulkSelected: [],
+    // WIP limits (per column, stored in localStorage)
+    wipLimits: { backlog: 0, in_progress: 5, review: 3, done: 0 },
+    wipEditOpen: false,
+    // Swimlanes
+    swimlaneBy: 'none', // 'none' | 'assignee' | 'priority'
+    // Saved filters
+    savedFilters: [],
+    savedFiltersOpen: false,
+    // Workload view
+    workload: [],
+    // Subtasks
+    subtasks: [],
+    subtaskForm: { title: '', ticket_type: 'task', priority: 'medium' },
+    subtaskFormOpen: false,
+    // Ticket relations state
+    relations: [],
+    relationForm: { to_key: '', relation_type: 'relates_to' },
+    relationFormOpen: false,
+    // Time logging
+    timeEntries: [],
+    timeForm: { minutes: 30, note: '', author: '' },
+    timeFormOpen: false,
+    // Roadmap view
+    roadmapTickets: [],
+    roadmapStart: null, roadmapEnd: null,
+    // Theme
+    darkMode: true,
 
     columns: [
       { status:'backlog',     label:'Backlog',     icon: svgStatusIcon('backlog')     },
@@ -908,7 +2270,7 @@ function app() {
     ],
 
     form: {
-      title:'', ticket_type:'task', priority:'medium', assignee:'', sprint:'',
+      title:'', ticket_type:'task', priority:'medium', assignee:'', sprint:'', project:'',
       story_points:null, role:'', description:'', acceptance_criteria:'',
       dev_checklist:[], qa_notes:[], test_cases:[], test_plan:'',
     },
@@ -933,7 +2295,21 @@ function app() {
     // ── Lifecycle ─────────────────────────────────────────────────────
 
     async init() {
-      await Promise.all([this.loadBoard(), this.loadStats()]);
+      const saved = localStorage.getItem('sbe_admin_mode');
+      if (saved === 'true') this.adminMode = true;
+      const theme = localStorage.getItem('sbe_theme') || 'dark';
+      this.darkMode = theme !== 'light';
+      document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
+      this.loadWipLimits();
+      this.loadSavedFilters();
+      await Promise.all([this.loadBoard(), this.loadStats(), this.loadProjects(), this.loadStories(), this.loadCustomFields(), this.loadSprints()]);
+    },
+
+    toggleTheme() {
+      this.darkMode = !this.darkMode;
+      const theme = this.darkMode ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('sbe_theme', theme);
     },
 
     // ── Data ─────────────────────────────────────────────────────────
@@ -961,6 +2337,163 @@ function app() {
       this.stats = await (await fetch('/api/stats')).json();
     },
 
+    async loadProjects() {
+      this.projects = await (await fetch('/api/projects')).json();
+    },
+
+    async loadStories() {
+      const data = await (await fetch('/api/tickets?ticket_type=story&page_size=200')).json();
+      this.storyTickets = data.tickets;
+    },
+
+    async loadCustomFields() {
+      this.customFieldDefs = await (await fetch('/api/admin/fields')).json();
+    },
+
+    toggleAdmin() {
+      this.adminMode = !this.adminMode;
+      localStorage.setItem('sbe_admin_mode', this.adminMode);
+      this.showToast(this.adminMode ? 'Admin mode enabled' : 'Admin mode disabled',
+                     this.adminMode ? 'success' : 'success');
+    },
+
+    async inlineUpdate(field, value) {
+      if (!this.currentTicket) return;
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ [field]: value })
+      });
+      if (res.ok) {
+        this.currentTicket = await res.json();
+        await Promise.all([this.loadBoard(), this.loadStats()]);
+        if (this.view === 'list') await this.loadList();
+        this.showToast('Updated', 'success');
+      } else {
+        this.showToast('Update failed', 'error');
+      }
+    },
+
+    async updateCustomField(key, value) {
+      if (!this.currentTicket) return;
+      const custom_data = { ...(this.currentTicket.custom_data || {}), [key]: value };
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ custom_data })
+      });
+      if (res.ok) {
+        this.currentTicket = await res.json();
+        await this.loadBoard();
+        this.showToast('Updated', 'success');
+      }
+    },
+
+    setCustomData(key, value) {
+      if (!this.form.custom_data) this.form.custom_data = {};
+      this.form.custom_data[key] = value;
+    },
+
+    async createCustomField() {
+      if (!this.newField.name.trim()) { this.adminFieldError = 'Name is required.'; return; }
+      this.adminFieldError = '';
+      const body = {
+        name: this.newField.name,
+        field_type: this.newField.field_type,
+        required: this.newField.required,
+        options: this.newField.field_type === 'select'
+          ? this.newField.optionsRaw.split(',').map(s => s.trim()).filter(Boolean)
+          : null,
+      };
+      const res = await fetch('/api/admin/fields', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      if (res.ok || res.status === 201) {
+        this.newField = { name: '', field_type: 'text', optionsRaw: '', required: false };
+        await this.loadCustomFields();
+        this.showToast('Field created', 'success');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        this.adminFieldError = err.detail || 'Something went wrong.';
+      }
+    },
+
+    async deleteCustomField(id) {
+      if (!confirm('Delete this custom field? Existing data will be preserved in tickets.')) return;
+      const res = await fetch(`/api/admin/fields/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        if (this.editingFieldId === id) this.editingFieldId = null;
+        await this.loadCustomFields();
+        this.showToast('Field deleted', 'success');
+      }
+    },
+
+    startEditField(f) {
+      this.editField = {
+        name: f.name,
+        required: f.required,
+        options: f.field_type === 'select' ? [...(f.options || [])] : [],
+        newOption: '',
+      };
+    },
+
+    addFieldOption() {
+      const opt = this.editField.newOption.trim();
+      if (!opt || this.editField.options.includes(opt)) return;
+      this.editField.options.push(opt);
+      this.editField.newOption = '';
+    },
+
+    async saveEditField(id) {
+      const body = {
+        name: this.editField.name.trim(),
+        required: this.editField.required,
+        options: this.editField.options.length ? this.editField.options : null,
+      };
+      const res = await fetch(`/api/admin/fields/${id}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        this.editingFieldId = null;
+        await this.loadCustomFields();
+        this.showToast('Field updated', 'success');
+      } else {
+        this.showToast('Update failed', 'error');
+      }
+    },
+
+    filterByProject(name) {
+      this.jqlRaw = `project:"${name}"`;
+      this.applyJQL();
+      this.switchView('board');
+    },
+
+    openCreateProject() {
+      this.projectForm = { name: '', description: '', color: '#5e6ad2' };
+      this.projectFormError = '';
+      this.projectFormOpen = true;
+    },
+
+    async submitProject() {
+      if (!this.projectForm.name.trim()) { this.projectFormError = 'Name is required.'; return; }
+      this.projectFormLoading = true;
+      this.projectFormError = '';
+      try {
+        const res = await fetch('/api/projects', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(this.projectForm)
+        });
+        if (res.ok || res.status === 201) {
+          this.projectFormOpen = false;
+          await this.loadProjects();
+          this.showToast('Project created', 'success');
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.projectFormError = err.detail || 'Something went wrong.';
+        }
+      } finally { this.projectFormLoading = false; }
+    },
+
     // ── JQL ───────────────────────────────────────────────────────────
 
     parseJQL(raw) {
@@ -986,6 +2519,7 @@ function app() {
           else if (key === 'type')                    out.type     = val;
           else if (key === 'status')                  out.status   = val;
           else if (key === 'pts' || key === 'points') out.points   = val;
+          else if (key === 'project' || key === 'proj') out.project = m[2] || m[3];
         } else {
           // quoted phrase (m[4]) or bare word (m[5])
           const word = m[4] || m[5] || '';
@@ -1018,6 +2552,10 @@ function app() {
       if (jql.sprint) {
         if (!ticket.sprint) return false;
         if (!ticket.sprint.toLowerCase().includes(jql.sprint.toLowerCase())) return false;
+      }
+      if (jql.project) {
+        if (!ticket.project) return false;
+        if (!ticket.project.toLowerCase().includes(jql.project.toLowerCase())) return false;
       }
       if (jql.points) {
         const pts = ticket.story_points ?? 0, v = jql.points;
@@ -1061,6 +2599,7 @@ function app() {
       if (p.role)     parts.push(`role:${p.role}`);
       if (p.assignee) parts.push(`assignee:${p.assignee}`);
       if (p.sprint)   parts.push(p.sprint.includes(' ') ? `sprint:"${p.sprint}"` : `sprint:${p.sprint}`);
+      if (p.project)  parts.push(p.project.includes(' ') ? `project:"${p.project}"` : `project:${p.project}`);
       if (p.type)     parts.push(`type:${p.type}`);
       if (p.status)   parts.push(`status:${p.status}`);
       if (p.points)   parts.push(`pts:${p.points}`);
@@ -1071,7 +2610,13 @@ function app() {
 
     async switchView(v) {
       this.view = v;
-      if (v === 'list') await this.loadList(); else await this.loadBoard();
+      if (v === 'list') await this.loadList();
+      else if (v === 'stories') await this.loadStories();
+      else if (v === 'projects') await this.loadProjects();
+      else if (v === 'sprints') await this.loadSprints();
+      else if (v === 'workload') await this.loadWorkload();
+      else if (v === 'roadmap') { await Promise.all([this.loadSprints(), this.loadRoadmap()]); }
+      else await this.loadBoard();
     },
 
     colPoints(status) {
@@ -1082,7 +2627,14 @@ function app() {
 
     async openDetail(ticket) {
       this.currentTicket = await (await fetch(`/api/tickets/${ticket.key}`)).json();
+      this.comments = []; this.commentBody = '';
+      this.relations = []; this.timeEntries = []; this.subtasks = [];
+      this.relationFormOpen = false; this.timeFormOpen = false; this.subtaskFormOpen = false;
       this.detailOpen = true;
+      this.loadComments(ticket.key);
+      this.loadRelations();
+      this.loadTimeEntries();
+      this.loadSubtasks();
     },
 
     async moveTicket(key, status) {
@@ -1126,6 +2678,7 @@ function app() {
         priority:            ticket.priority             || 'medium',
         assignee:            ticket.assignee             || '',
         sprint:              ticket.sprint               || '',
+        project:             ticket.project              || '',
         story_points:        ticket.story_points         || null,
         role:                ticket.role                 || '',
         description:         ticket.description          || '',
@@ -1134,6 +2687,7 @@ function app() {
         qa_notes:            ticket.qa_notes             || '',
         test_cases:          ticket.test_cases           || [],
         test_plan:           ticket.test_plan            || '',
+        custom_data:         ticket.custom_data          || {},
       };
       this.detailOpen = false;
       this.formOpen = true;
@@ -1170,39 +2724,118 @@ function app() {
 
     dragStart(event, ticket) {
       this.draggedTicket = ticket;
-      event.currentTarget.classList.add('dragging');
+      this._dropTargetKey = null;
+      this._dropPosition  = 'after';
       event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', ticket.key);
+      // Custom ghost: a small pill with the ticket key
+      const ghost = document.createElement('div');
+      ghost.textContent = ticket.key;
+      ghost.style.cssText = 'position:fixed;top:-999px;padding:4px 10px;background:#5e6ad2;color:#fff;border-radius:6px;font-size:12px;font-weight:600;font-family:monospace;pointer-events:none';
+      document.body.appendChild(ghost);
+      event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, 14);
+      setTimeout(() => ghost.remove(), 0);
+      // Fade the original card
+      setTimeout(() => event.currentTarget.classList.add('dragging'), 0);
     },
-    dragEnd(event)  { event.currentTarget.classList.remove('dragging'); },
-    dragOver(event) { event.currentTarget.classList.add('drop-over'); },
-    dragLeave(event){ event.currentTarget.classList.remove('drop-over'); },
+
+    dragEnd(event) {
+      event.currentTarget.classList.remove('dragging');
+      // Clean up any lingering indicators
+      document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom,.drop-over')
+        .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom','drop-over'));
+      this.draggedTicket  = null;
+      this._dropTargetKey = null;
+    },
+
+    colDragOver(event, status) {
+      event.currentTarget.classList.add('drop-over');
+    },
+    colDragLeave(event) {
+      event.currentTarget.classList.remove('drop-over');
+    },
+
+    cardDragOver(event) {
+      if (!this.draggedTicket) return;
+      const card = event.currentTarget;
+      const rect = card.getBoundingClientRect();
+      const isTopHalf = event.clientY < rect.top + rect.height / 2;
+      document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom')
+        .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom'));
+      card.classList.add(isTopHalf ? 'card-drag-over-top' : 'card-drag-over-bottom');
+      this._dropTargetKey = card.dataset.key;
+      this._dropPosition  = isTopHalf ? 'before' : 'after';
+    },
+
+    cardDragLeave(event) {
+      event.currentTarget.classList.remove('card-drag-over-top','card-drag-over-bottom');
+    },
 
     async dropTicket(event, status) {
-      event.currentTarget.classList.remove('drop-over');
-      if (!this.draggedTicket || this.draggedTicket.status === status) {
-        this.draggedTicket = null; return;
-      }
-      const ticket = this.draggedTicket;
-      this.draggedTicket = null;
-      // Optimistic update
+      // Clean up visual state
+      document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom,.drop-over')
+        .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom','drop-over'));
+
+      if (!this.draggedTicket) return;
+      const ticket   = this.draggedTicket;
+      const targetKey = this._dropTargetKey;
+      const position  = this._dropPosition;
+      this.draggedTicket  = null;
+      this._dropTargetKey = null;
+
+      // Build new board state with the card inserted at the right position
       const nb = {};
-      for (const [s, ts] of Object.entries(this.board)) nb[s] = ts.filter(t => t.key !== ticket.key);
-      nb[status] = [{ ...ticket, status }, ...(nb[status] || [])];
+      for (const [s, ts] of Object.entries(this.board))
+        nb[s] = ts.filter(t => t.key !== ticket.key);
+
+      const moved = { ...ticket, status };
+      const col = nb[status] || [];
+      if (targetKey && targetKey !== ticket.key) {
+        const idx = col.findIndex(t => t.key === targetKey);
+        if (idx !== -1) {
+          col.splice(position === 'before' ? idx : idx + 1, 0, moved);
+        } else {
+          col.unshift(moved);
+        }
+      } else {
+        col.unshift(moved);
+      }
+      nb[status] = col;
       this.board = nb;
-      await this.moveTicket(ticket.key, status);
+
+      if (ticket.status !== status) {
+        await this.moveTicket(ticket.key, status);
+      }
     },
 
     // ── Keyboard ──────────────────────────────────────────────────────
 
     handleKey(e) {
+      // Cmd+K / Ctrl+K — search overlay (works from anywhere)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault(); this.openSearch(); return;
+      }
       if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       switch (e.key.toLowerCase()) {
         case 'n': this.openCreate(); break;
         case 'b': this.switchView('board'); break;
         case 'l': this.switchView('list'); break;
+        case 's': this.switchView('stories'); break;
+        case 'p': this.switchView('projects'); break;
+        case 'r': this.switchView('sprints'); break;
+        case 'w': this.switchView('workload'); break;
+        case 'm': this.switchView('roadmap'); break;
+        case 'e': if (this.jqlRaw) this.saveCurrentFilter(); break;
         case '/': e.preventDefault(); document.querySelector('.filter-input')?.focus(); break;
-        case 'escape': this.formOpen = false; this.detailOpen = false; this.showJQLRef = false; break;
+        case '?': this.shortcutsOpen = true; break;
+        case 'x': this.toggleBulk(); break;
+        case 'escape':
+          this.formOpen = false; this.detailOpen = false; this.showJQLRef = false;
+          this.searchOpen = false; this.shortcutsOpen = false;
+          this.adminPanelOpen = false; this.projectFormOpen = false; this.sprintFormOpen = false;
+          if (this.bulkMode) { this.bulkMode = false; this.bulkSelected = []; }
+          break;
       }
     },
 
@@ -1270,6 +2903,394 @@ function app() {
       return `<span style="width:${s}px;height:${s}px;background:${color}18;color:${color};border:1px solid ${color}30;font-size:${fs}px;line-height:1"
         class="inline-flex items-center justify-center rounded-full font-semibold flex-shrink-0 select-none"
         title="${name}">${initials}</span>`;
+    },
+
+    // ── Comments ──────────────────────────────────────────────────────
+
+    async loadComments(key) {
+      const k = key || this.currentTicket?.key;
+      if (!k) return;
+      this.commentsLoading = true;
+      try {
+        const r = await fetch(`/api/tickets/${k}/comments`);
+        this.comments = r.ok ? (await r.json()) : [];
+      } finally { this.commentsLoading = false; }
+    },
+
+    async postComment() {
+      if (!this.commentBody.trim()) return;
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/comments`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ body: this.commentBody, author: this.commentAuthor || null })
+      });
+      if (res.ok || res.status === 201) {
+        this.commentBody = '';
+        await this.loadComments();
+      } else { this.showToast('Failed to post comment', 'error'); }
+    },
+
+    async deleteComment(id) {
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/comments/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) await this.loadComments();
+    },
+
+    // ── Sprints ───────────────────────────────────────────────────────
+
+    async loadSprints() {
+      try {
+        const data = await (await fetch('/api/sprints')).json();
+        this.sprints = Array.isArray(data) ? data : [];
+        const stats = {};
+        await Promise.all(this.sprints.map(async sp => {
+          try { stats[sp.id] = await (await fetch(`/api/sprints/${sp.id}/stats`)).json(); } catch {}
+        }));
+        this.sprintStats = stats;
+      } catch { this.sprints = []; }
+    },
+
+    async createSprint() {
+      if (!this.newSprint.name.trim()) { this.sprintFormError = 'Name is required'; return; }
+      this.sprintFormLoading = true; this.sprintFormError = '';
+      try {
+        const res = await fetch('/api/sprints', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(this.newSprint)
+        });
+        if (res.ok || res.status === 201) {
+          this.sprintFormOpen = false;
+          this.newSprint = { name: '', goal: '', start_date: '', end_date: '' };
+          await this.loadSprints();
+          this.showToast('Sprint created', 'success');
+        } else {
+          const err = await res.json().catch(() => ({}));
+          this.sprintFormError = err.detail || 'Something went wrong';
+        }
+      } finally { this.sprintFormLoading = false; }
+    },
+
+    async deleteSprint(id) {
+      if (!confirm('Delete this sprint?')) return;
+      const res = await fetch(`/api/sprints/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) { await this.loadSprints(); this.showToast('Sprint deleted', 'success'); }
+      else this.showToast('Failed to delete sprint', 'error');
+    },
+
+    async closeSprint(id) {
+      if (!confirm('Close this sprint?')) return;
+      const res = await fetch(`/api/sprints/${id}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ status: 'closed' })
+      });
+      if (res.ok) { await this.loadSprints(); this.showToast('Sprint closed', 'success'); }
+      else this.showToast('Failed to close sprint', 'error');
+    },
+
+    // ── Search overlay ────────────────────────────────────────────────
+
+    async doSearch() {
+      if (this.searchQuery.trim().length < 2) { this.searchResults = []; return; }
+      this.searchLoading = true;
+      try {
+        const r = await fetch(`/api/search?q=${encodeURIComponent(this.searchQuery)}&page_size=12`);
+        const d = await r.json();
+        this.searchResults = d.tickets || [];
+      } catch { this.searchResults = []; }
+      finally { this.searchLoading = false; }
+    },
+
+    openSearch() {
+      this.searchOpen = true;
+      this.searchQuery = '';
+      this.searchResults = [];
+      this.$nextTick(() => this.$refs.searchInput?.focus());
+    },
+
+    pickSearchResult(ticket) {
+      this.searchOpen = false;
+      this.openDetail(ticket);
+    },
+
+    // ── Bulk actions ──────────────────────────────────────────────────
+
+    toggleBulk() {
+      this.bulkMode = !this.bulkMode;
+      if (!this.bulkMode) this.bulkSelected = [];
+    },
+
+    toggleBulkSelect(key) {
+      const i = this.bulkSelected.indexOf(key);
+      if (i === -1) this.bulkSelected.push(key);
+      else this.bulkSelected.splice(i, 1);
+    },
+
+    async bulkMove(status) {
+      if (!this.bulkSelected.length) return;
+      await Promise.all(this.bulkSelected.map(key =>
+        fetch(`/api/tickets/${key}/move`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ status })
+        })
+      ));
+      this.showToast(`Moved ${this.bulkSelected.length} issues to ${status.replace('_',' ')}`, 'success');
+      this.bulkSelected = [];
+      this.bulkMode = false;
+      await Promise.all([this.loadBoard(), this.loadStats()]);
+      if (this.view === 'list') await this.loadList();
+    },
+
+    async bulkDelete() {
+      if (!this.bulkSelected.length) return;
+      if (!confirm(`Delete ${this.bulkSelected.length} issues?`)) return;
+      await Promise.all(this.bulkSelected.map(key =>
+        fetch(`/api/tickets/${key}`, { method: 'DELETE' })
+      ));
+      this.showToast(`Deleted ${this.bulkSelected.length} issues`, 'success');
+      this.bulkSelected = [];
+      this.bulkMode = false;
+      await Promise.all([this.loadBoard(), this.loadStats()]);
+      if (this.view === 'list') await this.loadList();
+    },
+
+    // ── WIP limits ────────────────────────────────────────────────────
+
+    loadWipLimits() {
+      const saved = localStorage.getItem('sbe_wip');
+      if (saved) try { this.wipLimits = { ...this.wipLimits, ...JSON.parse(saved) }; } catch {}
+    },
+    saveWipLimits() {
+      localStorage.setItem('sbe_wip', JSON.stringify(this.wipLimits));
+      this.wipEditOpen = false;
+      this.showToast('WIP limits saved', 'success');
+    },
+    wipColor(status) {
+      const lim = this.wipLimits[status];
+      if (!lim) return '';
+      const cnt = (this.filteredBoard[status] || []).length;
+      if (cnt > lim) return 'wip-over';
+      if (cnt >= lim * 0.8) return 'wip-warn';
+      return 'wip-ok';
+    },
+
+    // ── Swimlanes ─────────────────────────────────────────────────────
+
+    get swimlaneKeys() {
+      if (this.swimlaneBy === 'none') return ['_all'];
+      const keys = new Set();
+      for (const tickets of Object.values(this.board)) {
+        for (const t of tickets) {
+          const k = this.swimlaneBy === 'assignee' ? (t.assignee || 'Unassigned') : (t.priority || 'none');
+          keys.add(k);
+        }
+      }
+      const order = this.swimlaneBy === 'priority'
+        ? ['critical','high','medium','low']
+        : [...keys].sort();
+      return order.filter(k => keys.has(k));
+    },
+
+    laneHeaderStyle(laneKey) {
+      if (this.swimlaneBy !== 'priority') return '';
+      const colors = { critical: '#f87171', high: '#fb923c', medium: '#fbbf24', low: '#515158' };
+      return colors[laneKey] ? `color:${colors[laneKey]}` : '';
+    },
+
+    swimlaneBoard(laneKey) {
+      const out = {};
+      for (const [status, tickets] of Object.entries(this.filteredBoard)) {
+        out[status] = tickets.filter(t => {
+          if (this.swimlaneBy === 'none') return true;
+          const v = this.swimlaneBy === 'assignee' ? (t.assignee || 'Unassigned') : (t.priority || 'none');
+          return v === laneKey;
+        });
+      }
+      return out;
+    },
+
+    // ── Ticket aging ──────────────────────────────────────────────────
+
+    ticketAge(ticket) {
+      return Math.floor((Date.now() - new Date(ticket.created_at)) / 86400000);
+    },
+    ageClass(ticket) {
+      const d = this.ticketAge(ticket);
+      if (ticket.status === 'done') return '';
+      if (d >= 14) return 'age-old';
+      if (d >= 7) return 'age-warn';
+      return '';
+    },
+    ageBadge(ticket) {
+      const d = this.ticketAge(ticket);
+      if (ticket.status === 'done' || d < 7) return null;
+      return { label: d + 'd', cls: d >= 14 ? 'age-badge-old' : 'age-badge-warn' };
+    },
+
+    // ── Saved filters ─────────────────────────────────────────────────
+
+    loadSavedFilters() {
+      try { this.savedFilters = JSON.parse(localStorage.getItem('sbe_filters') || '[]'); } catch { this.savedFilters = []; }
+    },
+    saveCurrentFilter() {
+      if (!this.jqlRaw.trim()) return;
+      const name = prompt('Name this filter:');
+      if (!name) return;
+      this.savedFilters.push({ name, jql: this.jqlRaw });
+      localStorage.setItem('sbe_filters', JSON.stringify(this.savedFilters));
+      this.showToast('Filter saved', 'success');
+    },
+    applySavedFilter(f) {
+      this.jqlRaw = f.jql;
+      this.applyJQL();
+      this.savedFiltersOpen = false;
+    },
+    deleteSavedFilter(i) {
+      this.savedFilters.splice(i, 1);
+      localStorage.setItem('sbe_filters', JSON.stringify(this.savedFilters));
+    },
+
+    // ── Export ────────────────────────────────────────────────────────
+
+    async exportCSV() {
+      const p = new URLSearchParams();
+      if (this.parsedJQL.sprint)   p.set('sprint', this.parsedJQL.sprint);
+      if (this.parsedJQL.priority) p.set('priority', this.parsedJQL.priority);
+      if (this.parsedJQL.assignee) p.set('assignee', this.parsedJQL.assignee);
+      if (this.parsedJQL.status)   p.set('status', this.parsedJQL.status);
+      if (this.parsedJQL.project)  p.set('project', this.parsedJQL.project);
+      if (this.parsedJQL.type)     p.set('ticket_type', this.parsedJQL.type);
+      const url = '/api/export/csv?' + p;
+      const a = document.createElement('a');
+      a.href = url; a.download = 'scrumbleeggs-export.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    },
+
+    async exportJSON() {
+      const p = new URLSearchParams();
+      if (this.parsedJQL.sprint)   p.set('sprint', this.parsedJQL.sprint);
+      if (this.parsedJQL.priority) p.set('priority', this.parsedJQL.priority);
+      if (this.parsedJQL.assignee) p.set('assignee', this.parsedJQL.assignee);
+      const url = '/api/export/json?' + p;
+      const a = document.createElement('a');
+      a.href = url; a.download = 'scrumbleeggs-export.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    },
+
+    // ── Workload ──────────────────────────────────────────────────────
+
+    async loadWorkload() {
+      try {
+        const data = await (await fetch('/api/workload')).json();
+        this.workload = Array.isArray(data) ? data : [];
+      } catch { this.workload = []; }
+    },
+
+    // ── Relations ─────────────────────────────────────────────────────
+
+    async loadRelations() {
+      if (!this.currentTicket) return;
+      try {
+        const data = await (await fetch(`/api/tickets/${this.currentTicket.key}/relations`)).json();
+        this.relations = Array.isArray(data) ? data : [];
+      } catch { this.relations = []; }
+    },
+
+    async addRelation() {
+      if (!this.relationForm.to_key.trim()) return;
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/relations`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(this.relationForm)
+      });
+      if (res.ok || res.status === 201) {
+        this.relationForm = { to_key: '', relation_type: 'relates_to' };
+        this.relationFormOpen = false;
+        await this.loadRelations();
+        this.showToast('Relation added', 'success');
+      } else this.showToast('Failed to add relation', 'error');
+    },
+
+    async deleteRelation(id) {
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/relations/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) await this.loadRelations();
+    },
+
+    // ── Time logging ──────────────────────────────────────────────────
+
+    async loadTimeEntries() {
+      if (!this.currentTicket) return;
+      try {
+        const data = await (await fetch(`/api/tickets/${this.currentTicket.key}/time`)).json();
+        this.timeEntries = Array.isArray(data) ? data : [];
+      } catch { this.timeEntries = []; }
+    },
+
+    async logTime() {
+      if (!this.timeForm.minutes) return;
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/time`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(this.timeForm)
+      });
+      if (res.ok || res.status === 201) {
+        this.timeForm = { minutes: 30, note: '', author: '' };
+        this.timeFormOpen = false;
+        await this.loadTimeEntries();
+        this.showToast('Time logged', 'success');
+      } else this.showToast('Failed to log time', 'error');
+    },
+
+    totalTimeLogged() {
+      const mins = this.timeEntries.reduce((s, e) => s + (e.minutes || 0), 0);
+      if (mins < 60) return mins + 'm';
+      return Math.floor(mins / 60) + 'h ' + (mins % 60 ? (mins % 60) + 'm' : '');
+    },
+
+    // ── Subtasks ──────────────────────────────────────────────────────
+
+    async loadSubtasks() {
+      if (!this.currentTicket) return;
+      try {
+        const data = await (await fetch(`/api/tickets/${this.currentTicket.key}/subtasks`)).json();
+        this.subtasks = Array.isArray(data) ? data : [];
+      } catch { this.subtasks = []; }
+    },
+
+    async createSubtask() {
+      if (!this.subtaskForm.title.trim()) return;
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/subtasks`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(this.subtaskForm)
+      });
+      if (res.ok || res.status === 201) {
+        this.subtaskForm = { title: '', ticket_type: 'task', priority: 'medium' };
+        this.subtaskFormOpen = false;
+        await this.loadSubtasks();
+        this.showToast('Subtask created', 'success');
+      } else this.showToast('Failed to create subtask', 'error');
+    },
+
+    // ── Roadmap ───────────────────────────────────────────────────────
+
+    async loadRoadmap() {
+      try {
+        const data = await (await fetch('/api/tickets?page_size=500')).json();
+        this.roadmapTickets = (data.tickets || []).filter(t => t.sprint);
+        const allSprints = this.sprints.filter(s => s.start_date && s.end_date);
+        if (allSprints.length) {
+          this.roadmapStart = allSprints.reduce((m, s) => s.start_date < m ? s.start_date : m, allSprints[0].start_date);
+          this.roadmapEnd   = allSprints.reduce((m, s) => s.end_date > m ? s.end_date : m, allSprints[0].end_date);
+        }
+      } catch {}
+    },
+
+    roadmapSprintLeft(sprint, totalDays, startDate) {
+      if (!sprint.start_date || !startDate) return 0;
+      const start = new Date(startDate);
+      const spStart = new Date(sprint.start_date);
+      return Math.max(0, (spStart - start) / 86400000 / totalDays * 100);
+    },
+
+    roadmapSprintWidth(sprint, totalDays) {
+      if (!sprint.start_date || !sprint.end_date) return 0;
+      const days = (new Date(sprint.end_date) - new Date(sprint.start_date)) / 86400000;
+      return Math.max(1, days / totalDays * 100);
     },
 
     relativeDate(iso) {
