@@ -359,6 +359,23 @@ class LoginAttemptModel(Base):
     success = Column(Integer, nullable=False, default=0)  # 1=true, 0=false
 
 
+class InviteModel(Base):
+    """One-time invite token for new user onboarding (no self-registration)."""
+
+    __tablename__ = "invites"
+
+    token = Column(String(64), primary_key=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)  # None = not yet redeemed
+
+
 # ---------------------------------------------------------------------------
 # Engine factory
 # ---------------------------------------------------------------------------

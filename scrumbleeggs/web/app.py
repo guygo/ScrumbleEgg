@@ -40,7 +40,7 @@ _SESSION_COOKIE = "sbe_session"
 
 # Public paths that never require authentication
 _PUBLIC_PATHS = frozenset({"/login", "/auth/login", "/auth/logout", "/favicon.ico"})
-_PUBLIC_PREFIXES = ("/static/",)
+_PUBLIC_PREFIXES = ("/static/", "/invite/")
 
 # Fake admin user injected when auth is disabled (testing only)
 _ANON_ADMIN: Optional["User"] = None  # resolved lazily after User is imported
@@ -303,7 +303,6 @@ class LoginRequest(BaseModel):
 
 class UserCreateRequest(BaseModel):
     username: str
-    password: str
     role: str = "developer"
     email: Optional[str] = None
 
@@ -395,6 +394,34 @@ async def auth_me(current_user: CurrentUser):
 
 
 # ---------------------------------------------------------------------------
+# Invite flow (public — no auth required)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/invite/{token}", response_class=HTMLResponse)
+async def invite_page(request: Request, token: str):
+    """Render the set-password page for a pending invite."""
+    return templates.TemplateResponse("invite.html", {"request": request, "token": token})
+
+
+@app.post("/invite/{token}")
+async def redeem_invite(token: str, response: Response, body: dict):
+    """Redeem an invite token — set password and activate the account."""
+    password = body.get("password", "")
+    try:
+        user = _auth.redeem_invite(token, password)
+    except (AuthError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    # Log the user in immediately after redemption
+    session_token = _auth.create_session(user.id, ip_address=None)
+    response.set_cookie(
+        "sbe_session", session_token,
+        httponly=True, samesite="lax", max_age=86400 * 7,
+    )
+    return {"ok": True, "username": user.username}
+
+
+# ---------------------------------------------------------------------------
 # User management routes (admin only)
 # ---------------------------------------------------------------------------
 
@@ -406,18 +433,15 @@ async def list_users(_admin: AdminUser):
 
 
 @app.post("/api/users", status_code=201)
-async def create_user(body: UserCreateRequest, _admin: AdminUser):
-    """Create a new user account. Requires admin role."""
+async def create_user(request: Request, body: UserCreateRequest, _admin: AdminUser):
+    """Create an inactive user and return a one-time invite URL. Requires admin role."""
     try:
-        user = _auth.create_user(
-            username=body.username,
-            password=body.password,
-            role=body.role,
-            email=body.email,
-        )
+        user = _auth.create_user(username=body.username, role=body.role, email=body.email)
+        token = _auth.create_invite(user.id)
     except (AuthError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return user.to_dict()
+    base = str(request.base_url).rstrip("/")
+    return {**user.to_dict(), "invite_url": f"{base}/invite/{token}"}
 
 
 @app.patch("/api/users/{user_id}")

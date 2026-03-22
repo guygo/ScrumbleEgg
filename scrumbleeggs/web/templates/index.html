@@ -1868,7 +1868,7 @@
         <h2 class="text-lg font-semibold text-n100">User Management</h2>
         <p class="text-xs text-n500 mt-0.5">Create and manage workspace members.</p>
       </div>
-      <button @click="userCreateOpen=true; userCreateError=''"
+      <button @click="userCreateOpen=true; userCreateError=''; inviteUrl=''; inviteCopied=false; userCreateForm={username:'',role:'developer',email:''}"
               class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold
                      px-3 py-1.5 rounded-lg transition-colors">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1882,17 +1882,26 @@
     <div x-show="userCreateOpen" x-cloak
          class="mb-6 bg-n900 border border-n700 rounded-xl p-5 space-y-3">
       <h3 class="text-sm font-semibold text-n100 mb-1">New user</h3>
-      <div x-show="userCreateError" class="text-xs text-r400 bg-r900 border border-r400/20 px-3 py-2 rounded-lg" x-text="userCreateError"></div>
-      <div class="grid grid-cols-2 gap-3">
+      <div x-show="userCreateError" class="text-xs text-red-400 bg-red-950/40 border border-red-800/30 px-3 py-2 rounded-lg" x-text="userCreateError"></div>
+
+      <!-- Invite URL shown after creation -->
+      <div x-show="inviteUrl" x-cloak class="rounded-lg bg-green-950/40 border border-green-800/30 p-3 space-y-1.5">
+        <p class="text-xs font-medium text-green-400">User created — share this invite link:</p>
+        <div class="flex items-center gap-2">
+          <input type="text" readonly :value="inviteUrl"
+                 class="flex-1 h-8 px-2 rounded-lg bg-n800 border border-n700 text-xs text-n200 font-mono
+                        focus:outline-none focus:border-acc transition-colors" />
+          <button @click="copyInvite()"
+                  class="flex-shrink-0 text-xs bg-acc hover:bg-accH text-white px-3 py-1.5 rounded-lg transition-colors"
+                  x-text="inviteCopied ? 'Copied!' : 'Copy'"></button>
+        </div>
+        <p class="text-[11px] text-n500">Link expires in 7 days and can only be used once.</p>
+      </div>
+
+      <div x-show="!inviteUrl" class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs text-n500 mb-1">Username *</label>
           <input x-model="userCreateForm.username" type="text" placeholder="alice"
-                 class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
-                        focus:outline-none focus:border-acc transition-colors" />
-        </div>
-        <div>
-          <label class="block text-xs text-n500 mb-1">Password *</label>
-          <input x-model="userCreateForm.password" type="password" placeholder="min 8 chars"
                  class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
                         focus:outline-none focus:border-acc transition-colors" />
         </div>
@@ -1906,21 +1915,22 @@
             <option value="admin">Admin</option>
           </select>
         </div>
-        <div>
+        <div class="col-span-2">
           <label class="block text-xs text-n500 mb-1">Email (optional)</label>
           <input x-model="userCreateForm.email" type="email" placeholder="alice@example.com"
                  class="w-full h-8 px-3 rounded-lg bg-n800 border border-n700 text-sm text-n100
                         focus:outline-none focus:border-acc transition-colors" />
         </div>
       </div>
+
       <div class="flex gap-2 pt-1">
-        <button @click="createUser()"
+        <button x-show="!inviteUrl" @click="createUser()"
                 class="flex items-center gap-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
-          Create
+          Create &amp; get invite link
         </button>
-        <button @click="userCreateOpen=false"
+        <button @click="userCreateOpen=false; inviteUrl=''; inviteCopied=false; userCreateForm={username:'',role:'developer',email:''}"
                 class="text-xs text-n500 hover:text-n300 px-3 py-1.5 rounded-lg transition-colors">
-          Cancel
+          <span x-text="inviteUrl ? 'Done' : 'Cancel'"></span>
         </button>
       </div>
     </div>
@@ -2421,8 +2431,9 @@ function app() {
     currentUser: null,
     // User management (admin view)
     usersViewData: [], usersViewLoading: false,
-    userCreateForm: { username:'', password:'', role:'developer', email:'' },
+    userCreateForm: { username:'', role:'developer', email:'' },
     userCreateOpen: false, userCreateError: '',
+    inviteUrl: '', inviteCopied: false,
 
     columns: [
       { status:'backlog',     label:'Backlog',     icon: svgStatusIcon('backlog')     },
@@ -2503,14 +2514,21 @@ function app() {
         body: JSON.stringify(this.userCreateForm),
       });
       if (r.ok) {
-        this.userCreateOpen = false;
-        this.userCreateForm = { username:'', password:'', role:'developer', email:'' };
+        const d = await r.json();
+        this.inviteUrl = d.invite_url;
         await this.loadUsersView();
-        this.toast('User created', 'success');
+        this.toast('User created — share the invite link', 'success');
       } else {
         const d = await r.json();
         this.userCreateError = d.detail || 'Failed to create user';
       }
+    },
+
+    copyInvite() {
+      navigator.clipboard.writeText(this.inviteUrl).then(() => {
+        this.inviteCopied = true;
+        setTimeout(() => { this.inviteCopied = false; }, 2000);
+      });
     },
 
     async toggleUserActive(user) {

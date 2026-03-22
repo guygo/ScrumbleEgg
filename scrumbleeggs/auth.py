@@ -25,6 +25,7 @@ MAX_FAILED_ATTEMPTS = int(os.getenv("SBE_MAX_FAILED_ATTEMPTS", "5"))   # per use
 MAX_IP_ATTEMPTS = int(os.getenv("SBE_MAX_IP_ATTEMPTS", "20"))          # per IP (spray guard)
 LOCKOUT_MINUTES = int(os.getenv("SBE_LOCKOUT_MINUTES", "15"))
 BCRYPT_COST = int(os.getenv("SBE_BCRYPT_COST", "12"))
+INVITE_TTL_DAYS = int(os.getenv("SBE_INVITE_TTL_DAYS", "7"))
 
 VALID_ROLES = frozenset({"admin", "developer", "tester"})
 
@@ -148,15 +149,19 @@ class AuthService:
     def create_user(
         self,
         username: str,
-        password: str,
+        password: Optional[str] = None,
         role: str = "developer",
         email: Optional[str] = None,
     ) -> User:
         """Create a new user account.
 
+        When password is None the account is created inactive (is_active=0)
+        with no password hash — the user must redeem an invite to set their
+        password and activate the account.
+
         Args:
             username: Unique handle (3–32 chars, letters/digits/underscore/dash).
-            password: Plaintext password (min 8 chars).
+            password: Plaintext password (min 8 chars), or None for invite flow.
             role: One of 'admin', 'developer', 'tester'.
             email: Optional email address.
 
@@ -178,7 +183,7 @@ class AuthService:
         if role not in VALID_ROLES:
             raise ValueError(f"Invalid role '{role}'. Must be one of: {sorted(VALID_ROLES)}.")
 
-        password_hash = self.hash_password(password)
+        password_hash = self.hash_password(password) if password else ""
         user_id = str(uuid.uuid4())
         now = datetime.now(_UTC)
 
@@ -194,7 +199,7 @@ class AuthService:
                 email=email,
                 password_hash=password_hash,
                 role=role,
-                is_active=1,
+                is_active=1 if password else 0,  # inactive until invite redeemed
                 created_at=now,
             ))
             db.commit()
@@ -202,7 +207,7 @@ class AuthService:
         logger.info("Created user '%s' with role '%s'", username, role)
         return User(
             id=user_id, username=username, email=email,
-            role=role, is_active=True, created_at=now,
+            role=role, is_active=bool(password), created_at=now,
         )
 
     def get_user_by_username(self, username: str) -> Optional[User]:
@@ -516,6 +521,84 @@ class AuthService:
             admin_pass,
         )
         return admin_pass
+
+    # ── Invite flow ───────────────────────────────────────────────────
+
+    def create_invite(self, user_id: str) -> str:
+        """Generate a one-time invite token for an inactive user.
+
+        Any previously unused invites for the same user are deleted so only
+        the latest link is valid.
+
+        Args:
+            user_id: ID of the user to invite.
+
+        Returns:
+            The raw invite token (caller should embed in the invite URL).
+        """
+        from scrumbleeggs.db import InviteModel
+
+        token = secrets.token_urlsafe(32)
+        now = datetime.utcnow()  # naive UTC — consistent with SQLite round-trip
+        expires_at = now + timedelta(days=INVITE_TTL_DAYS)
+
+        with self._db.session() as db:
+            # Invalidate any pending invites for this user
+            db.query(InviteModel).filter(
+                InviteModel.user_id == user_id,
+                InviteModel.used_at.is_(None),
+            ).delete()
+            db.add(InviteModel(
+                token=token,
+                user_id=user_id,
+                created_at=now,
+                expires_at=expires_at,
+            ))
+
+        logger.info("Created invite for user_id=%s expires=%s", user_id, expires_at.date())
+        return token
+
+    def redeem_invite(self, token: str, password: str) -> User:
+        """Activate a user account by redeeming an invite token and setting a password.
+
+        Args:
+            token: The raw invite token from the URL.
+            password: Plaintext password chosen by the user (min 8 chars).
+
+        Returns:
+            The activated User.
+
+        Raises:
+            AuthError: If the token is invalid, expired, or already used.
+            ValueError: If the password is too short.
+        """
+        from scrumbleeggs.db import InviteModel, UserModel
+
+        if len(password) < 8:
+            raise ValueError("Password must be at least 8 characters.")
+
+        # Use naive UTC — SQLite strips timezone info on round-trip
+        now = datetime.utcnow()
+
+        with self._db.session() as db:
+            invite = db.query(InviteModel).filter_by(token=token).first()
+            if not invite:
+                raise AuthError("Invite link is invalid.")
+            if invite.used_at is not None:
+                raise AuthError("This invite link has already been used.")
+            if invite.expires_at < now:
+                raise AuthError("This invite link has expired.")
+
+            user_row = db.query(UserModel).filter_by(id=invite.user_id).first()
+            if not user_row:
+                raise AuthError("User account not found.")
+
+            user_row.password_hash = self.hash_password(password)
+            user_row.is_active = 1
+            invite.used_at = now
+
+        logger.info("Invite redeemed — user '%s' activated", user_row.username)
+        return self._row_to_user(user_row)
 
     # ── Helpers ───────────────────────────────────────────────────────
 
