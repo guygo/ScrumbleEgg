@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SESSION_TTL_HOURS = int(os.getenv("SBE_SESSION_TTL_HOURS", "24"))
-MAX_FAILED_ATTEMPTS = int(os.getenv("SBE_MAX_FAILED_ATTEMPTS", "5"))
+SESSION_TOKEN_BYTES = 32                                             # secrets.token_urlsafe length
+MAX_FAILED_ATTEMPTS = int(os.getenv("SBE_MAX_FAILED_ATTEMPTS", "5"))   # per username
+MAX_IP_ATTEMPTS = int(os.getenv("SBE_MAX_IP_ATTEMPTS", "20"))          # per IP (spray guard)
 LOCKOUT_MINUTES = int(os.getenv("SBE_LOCKOUT_MINUTES", "15"))
 BCRYPT_COST = int(os.getenv("SBE_BCRYPT_COST", "12"))
 
@@ -133,7 +135,12 @@ class AuthService:
         """
         try:
             return bcrypt.checkpw(password.encode(), password_hash.encode())
-        except Exception:
+        except ValueError as exc:
+            # Raised by bcrypt when the hash is malformed or truncated
+            logger.warning("Password verification rejected malformed hash: %s", exc)
+            return False
+        except Exception as exc:
+            logger.error("Unexpected error in verify_password: %s", exc)
             return False
 
     # ── Users ─────────────────────────────────────────────────────────
@@ -306,7 +313,7 @@ class AuthService:
         """
         from scrumbleeggs.db import SessionModel, UserModel
 
-        token = secrets.token_urlsafe(32)
+        token = secrets.token_urlsafe(SESSION_TOKEN_BYTES)
         now = datetime.now(_UTC)
         expires = now + timedelta(hours=SESSION_TTL_HOURS)
 
@@ -339,7 +346,8 @@ class AuthService:
         """
         from scrumbleeggs.db import SessionModel, UserModel
 
-        if not token:
+        # Reject obviously invalid tokens before touching the DB
+        if not token or len(token) < SESSION_TOKEN_BYTES:
             return None
 
         now = datetime.now(_UTC)
@@ -412,7 +420,8 @@ class AuthService:
 
         cutoff = datetime.now(_UTC) - timedelta(minutes=LOCKOUT_MINUTES)
         with self._db.session() as db:
-            failures = (
+            # Per-username lockout — stops credential stuffing on known accounts
+            username_failures = (
                 db.query(LoginAttemptModel)
                 .filter(
                     LoginAttemptModel.username == username,
@@ -421,14 +430,33 @@ class AuthService:
                 )
                 .count()
             )
-        if failures >= MAX_FAILED_ATTEMPTS:
-            logger.warning(
-                "Rate limit triggered: username='%s' ip=%s failures=%d",
-                username, ip_address, failures,
+            if username_failures >= MAX_FAILED_ATTEMPTS:
+                logger.warning(
+                    "Rate limit (username) triggered: username='%s' ip=%s failures=%d",
+                    username, ip_address, username_failures,
+                )
+                raise RateLimitError(
+                    f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes."
+                )
+
+            # Per-IP lockout — stops username enumeration / spray attacks from one source
+            ip_failures = (
+                db.query(LoginAttemptModel)
+                .filter(
+                    LoginAttemptModel.ip_address == ip_address,
+                    LoginAttemptModel.success == 0,
+                    LoginAttemptModel.attempted_at >= cutoff,
+                )
+                .count()
             )
-            raise RateLimitError(
-                f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes."
-            )
+            if ip_failures >= MAX_IP_ATTEMPTS:
+                logger.warning(
+                    "Rate limit (IP) triggered: ip=%s failures=%d",
+                    ip_address, ip_failures,
+                )
+                raise RateLimitError(
+                    f"Too many failed attempts from this IP. Try again in {LOCKOUT_MINUTES} minutes."
+                )
 
     def record_login_attempt(
         self, username: str, ip_address: str, success: bool
