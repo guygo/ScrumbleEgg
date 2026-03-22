@@ -9,8 +9,8 @@
  * Usage:
  *   import { ensureLoggedIn } from './lib/auth.js';
  *
- *   export function setup()       { ensureLoggedIn(); /* setup requests */ }
- *   export default function(data) { ensureLoggedIn(); /* test requests  */ }
+ *   export function setup()       { ensureLoggedIn(); }
+ *   export default function(data) { ensureLoggedIn(); }
  *
  * Config via env vars (pass with -e or --env):
  *   SBE_BASE_URL        default: http://localhost:8000
@@ -25,17 +25,24 @@ const USERNAME = __ENV.SBE_ADMIN_USER || 'admin';
 const PASSWORD = __ENV.SBE_ADMIN_PASS || 'testpassword123';
 
 // Per-VU state — each VU has its own module instance in k6's runtime.
-let _loggedIn = false;
+// We store the raw session token so we can re-inject it into the cookie
+// jar on every call. k6 clears the cookie jar between iterations, so
+// storing a boolean flag is not enough.
+let _sessionToken = null;
 
 /**
- * Log in once per VU and let k6's cookie jar carry the session cookie
- * on all subsequent requests to the same origin.
+ * Log in once per VU and re-inject the session cookie into k6's cookie
+ * jar on every subsequent call (the jar is reset between iterations).
  *
  * Throws if the login request fails so the test surfaces auth errors
  * immediately rather than silently failing with 401s.
  */
 export function ensureLoggedIn() {
-  if (_loggedIn) return;
+  if (_sessionToken) {
+    // Re-apply cookie — jar is cleared between iterations in k6.
+    http.cookieJar().set(`${BASE}/`, 'sbe_session', _sessionToken);
+    return;
+  }
 
   const r = http.post(
     `${BASE}/auth/login`,
@@ -49,7 +56,14 @@ export function ensureLoggedIn() {
     );
   }
 
-  _loggedIn = true;
+  // Extract the session token from the Set-Cookie header and store it.
+  const setCookie = r.headers['Set-Cookie'] || '';
+  const match = setCookie.match(/sbe_session=([^;]+)/);
+  if (!match) {
+    throw new Error(`[k6-auth] No sbe_session cookie in login response for VU ${__VU}`);
+  }
+  _sessionToken = match[1];
+  http.cookieJar().set(`${BASE}/`, 'sbe_session', _sessionToken);
 }
 
 /** Base URL used by all test files — import from here to keep it DRY. */
