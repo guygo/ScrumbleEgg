@@ -1,4 +1,5 @@
 """FastAPI web application for scrumbleeggs."""
+import asyncio
 import csv
 import io
 import logging
@@ -128,7 +129,8 @@ _metrics = MetricsCollector(window=60)
 _stats_cache: dict = {}
 _board_cache: dict = {}
 _STATS_TTL = 5.0
-_BOARD_TTL = 1.0
+_BOARD_TTL = 5.0
+_board_lock = asyncio.Lock()  # prevents thundering herd on cache miss
 
 
 # ---------------------------------------------------------------------------
@@ -488,20 +490,32 @@ async def chart_test_page(request: Request):
 
 @app.get("/api/board")
 async def api_board(sprint: Optional[str] = None, project: Optional[str] = None):
-    """Return tickets grouped by status, with a 1-second TTL cache per filter combo."""
+    """Return tickets grouped by status, with a 5-second TTL cache per filter combo.
+
+    Uses an asyncio.Lock to prevent thundering herd on cache miss and
+    asyncio.to_thread so the blocking DB call does not stall the event loop.
+    """
     global _board_cache
-    now = time.time()
     cache_key = f"{sprint}:{project}"
+
+    # Fast path — no lock needed for a valid cache hit
+    now = time.time()
     entry = _board_cache.get(cache_key)
     if entry and entry["expires"] > now:
         return entry["data"]
 
-    board = _svc.board_data(sprint=sprint, project=project)
-    data = {status: [t.to_dict() for t in tickets] for status, tickets in board.items()}
-    _board_cache[cache_key] = {"data": data, "expires": now + _BOARD_TTL}
-    # Evict stale keys to prevent unbounded growth
-    _board_cache = {k: v for k, v in _board_cache.items() if v["expires"] > now}
-    return data
+    # Slow path — serialize concurrent misses so only one DB call fires
+    async with _board_lock:
+        now = time.time()
+        entry = _board_cache.get(cache_key)  # re-check after acquiring lock
+        if entry and entry["expires"] > now:
+            return entry["data"]
+
+        board = await asyncio.to_thread(_svc.board_data, sprint=sprint, project=project)
+        data = {status: [t.to_dict() for t in tickets] for status, tickets in board.items()}
+        _board_cache[cache_key] = {"data": data, "expires": now + _BOARD_TTL}
+        _board_cache = {k: v for k, v in _board_cache.items() if v["expires"] > now}
+        return data
 
 
 # ---------------------------------------------------------------------------
@@ -1016,11 +1030,11 @@ async def api_stats():
     if _stats_cache.get("expires", 0) > now:
         return _stats_cache["data"]
 
-    board = _svc.board_data()
-    _, total = _svc.list_tickets(page_size=1)
-    done = len(board.get(TicketStatus.DONE, []))
-    in_progress = len(board.get(TicketStatus.IN_PROGRESS, []))
-    backlog = len(board.get(TicketStatus.BACKLOG, []))
+    counts = await asyncio.to_thread(_svc.count_by_status)
+    total = sum(counts.values())
+    done = counts.get(TicketStatus.DONE, 0)
+    in_progress = counts.get(TicketStatus.IN_PROGRESS, 0)
+    backlog = counts.get(TicketStatus.BACKLOG, 0)
     data = {
         "total": total,
         "done": done,

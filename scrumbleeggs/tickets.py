@@ -4,10 +4,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
-from .db import Database, Priority, Role, Ticket, TicketStatus, TicketType
+from .db import Database, Priority, Role, Ticket, TicketStatus, TicketType, Project
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ class TicketCreate:
     priority: Priority = Priority.MEDIUM
     assignee: str = ""
     sprint: str = ""
+    project: str = ""
     story_points: Optional[int] = None
     role: Optional[Role] = None
     # Developer fields
@@ -52,6 +53,8 @@ class TicketCreate:
     qa_notes: str = ""
     test_cases: list = field(default_factory=list)
     test_plan: str = ""
+    # Admin custom fields
+    custom_data: Optional[dict] = None
 
 
 @dataclass
@@ -77,12 +80,14 @@ class TicketUpdate:
     priority: Optional[Priority] = None
     assignee: Optional[str] = None
     sprint: Optional[str] = None
+    project: Optional[str] = None
     story_points: Optional[int] = None
     acceptance_criteria: Optional[str] = None
     dev_checklist: Optional[list] = None
     qa_notes: Optional[str] = None
     test_cases: Optional[list] = None
     test_plan: Optional[str] = None
+    custom_data: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +147,7 @@ class TicketService:
                         priority=data.priority,
                         assignee=data.assignee or None,
                         sprint=data.sprint or None,
+                        project=data.project or None,
                         story_points=data.story_points,
                         role=data.role,
                         acceptance_criteria=data.acceptance_criteria or None,
@@ -149,6 +155,7 @@ class TicketService:
                         qa_notes=data.qa_notes or None,
                         test_cases=data.test_cases or None,
                         test_plan=data.test_plan or None,
+                        custom_data=data.custom_data,
                     )
                     session.add(ticket)
                     session.flush()
@@ -256,6 +263,7 @@ class TicketService:
         status: Optional[TicketStatus] = None,
         assignee: Optional[str] = None,
         sprint: Optional[str] = None,
+        project: Optional[str] = None,
         ticket_type: Optional[TicketType] = None,
         priority: Optional[Priority] = None,
         role: Optional[Role] = None,
@@ -285,6 +293,8 @@ class TicketService:
                 query = query.where(Ticket.assignee == assignee)
             if sprint:
                 query = query.where(Ticket.sprint == sprint)
+            if project:
+                query = query.where(Ticket.project == project)
             if ticket_type:
                 query = query.where(Ticket.ticket_type == ticket_type)
             if priority:
@@ -300,36 +310,75 @@ class TicketService:
             tickets = list(session.execute(query).scalars())
             return tickets, total
 
-    def board_data(self, sprint: Optional[str] = None) -> dict[str, list[Ticket]]:
-        """Return all tickets grouped by status for the board view.
+    def search(self, query: str, page: int = 1, page_size: int = 20) -> tuple[list[Ticket], int]:
+        pattern = f"%{query}%"
+        with self.db.session() as session:
+            stmt = select(Ticket).where(
+                or_(
+                    Ticket.key.like(pattern),
+                    Ticket.title.like(pattern),
+                    Ticket.description.like(pattern),
+                    Ticket.assignee.like(pattern),
+                )
+            )
+            count_q = select(func.count()).select_from(stmt.subquery())
+            total = session.execute(count_q).scalar() or 0
+            stmt = stmt.order_by(Ticket.created_at.desc())
+            stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+            tickets = list(session.execute(stmt).scalars())
+            return tickets, total
+
+    def board_data(
+        self,
+        sprint: Optional[str] = None,
+        project: Optional[str] = None,
+        per_column_limit: int = 100,
+    ) -> dict[str, list[Ticket]]:
+        """Return tickets grouped by status for the board view.
+
+        Runs one query per status column so each query can use the status
+        index and apply a LIMIT, avoiding a full table scan.
 
         Args:
             sprint: Optionally restrict to a single sprint.
+            project: Optionally restrict to a single project.
+            per_column_limit: Max tickets returned per column (default 100).
 
         Returns:
             dict[str, list[Ticket]]: Status -> list of tickets mapping.
         """
-        with self.db.session() as session:
-            query = select(Ticket)
-            if sprint:
-                query = query.where(Ticket.sprint == sprint)
-            priority_order = case(
-                (Ticket.priority == Priority.CRITICAL, 0),
-                (Ticket.priority == Priority.HIGH, 1),
-                (Ticket.priority == Priority.MEDIUM, 2),
-                (Ticket.priority == Priority.LOW, 3),
-                else_=4,
-            )
-            query = query.order_by(priority_order, Ticket.created_at)
-            tickets = list(session.execute(query).scalars())
-
+        priority_order = case(
+            (Ticket.priority == Priority.CRITICAL, 0),
+            (Ticket.priority == Priority.HIGH, 1),
+            (Ticket.priority == Priority.MEDIUM, 2),
+            (Ticket.priority == Priority.LOW, 3),
+            else_=4,
+        )
         board: dict[str, list[Ticket]] = {
             TicketStatus.BACKLOG: [],
             TicketStatus.IN_PROGRESS: [],
             TicketStatus.REVIEW: [],
             TicketStatus.DONE: [],
         }
-        for ticket in tickets:
-            bucket = board.setdefault(ticket.status, [])
-            bucket.append(ticket)
+        with self.db.session() as session:
+            for status in board:
+                q = select(Ticket).where(Ticket.status == status)
+                if sprint:
+                    q = q.where(Ticket.sprint == sprint)
+                if project:
+                    q = q.where(Ticket.project == project)
+                q = q.order_by(priority_order, Ticket.created_at).limit(per_column_limit)
+                board[status] = list(session.execute(q).scalars())
         return board
+
+    def count_by_status(self) -> dict[str, int]:
+        """Return ticket counts grouped by status using a single aggregate query.
+
+        Returns:
+            dict[str, int]: Status -> count mapping.
+        """
+        with self.db.session() as session:
+            rows = session.execute(
+                select(Ticket.status, func.count().label("n")).group_by(Ticket.status)
+            ).all()
+        return {row.status: row.n for row in rows}
