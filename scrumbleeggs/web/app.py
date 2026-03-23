@@ -436,7 +436,9 @@ async def list_users(_admin: AdminUser):
 async def create_user(request: Request, body: UserCreateRequest, _admin: AdminUser):
     """Create an inactive user and return a one-time invite URL. Requires admin role."""
     try:
-        user = _auth.create_user(username=body.username, role=body.role, email=body.email)
+        user = _auth.create_user(
+            username=body.username, role=body.role, email=body.email or None
+        )
         token = _auth.create_invite(user.id)
     except (AuthError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))

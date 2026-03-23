@@ -1467,7 +1467,7 @@
 </header>
 
 <!-- Active filter chips + unknown key warning -->
-<div x-show="activeChips.length || unknownKeys.length" x-cloak
+<div x-show="activeChips.length || unknownKeys.length || parsedJQL.title" x-cloak
      class="flex-shrink-0 border-b border-n800 px-4 py-2 flex items-center gap-2 flex-wrap bg-n900/80">
   <span class="text-[11px] text-n600">Filtered:</span>
 
@@ -1500,7 +1500,7 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
     </svg>
-    <span x-text='"&quot;" + parsedJQL.title + "&quot;"'></span>
+    <span x-text="'&quot;' + parsedJQL.title + '&quot;'"></span>
   </span>
 
   <button @click="clearJQL()" class="text-[11px] text-n600 hover:text-r400 ml-1 transition-colors">

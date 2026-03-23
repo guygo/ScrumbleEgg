@@ -228,7 +228,9 @@ class TestTicketDetail:
 
     def test_detail_shows_key(self, page: Page):
         self._open_any_ticket_detail(page)
-        expect(page.locator("span.font-mono").first).to_be_visible()
+        # The ticket key (SBE-N) in the detail panel toolbar — narrow to the detail panel
+        detail_panel = page.locator("div.panel-in:visible")
+        expect(detail_panel.locator("span.font-mono").first).to_be_visible()
 
     def test_detail_closes_on_escape(self, page: Page):
         self._open_any_ticket_detail(page)
@@ -747,3 +749,295 @@ class TestAPIEndpoints:
         body = list_resp.json()
         entries = body if isinstance(body, list) else body.get("entries", [])
         assert any(e["minutes"] == 90 for e in entries)
+
+
+# ── Test: Settings panel ──────────────────────────────────────────────────────
+
+class TestSettingsPanel:
+    def _open_settings(self, page: Page) -> None:
+        # Avatar/account button — identified by containing a rounded-full avatar div
+        page.locator("div[x-data*='menuOpen'] > button").first.click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").first.click()
+        page.wait_for_selector("h2:has-text('Preferences')", state="visible", timeout=5000)
+
+    def test_settings_panel_opens(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("h2:has-text('Preferences')")).to_be_visible()
+
+    def test_settings_panel_closes_on_escape(self, page: Page):
+        self._open_settings(page)
+        page.keyboard.press("Escape")
+        expect(page.locator("h2:has-text('Preferences')")).not_to_be_visible()
+
+    def test_settings_panel_closes_on_backdrop_click(self, page: Page):
+        self._open_settings(page)
+        page.locator("div.backdrop").first.click()
+        expect(page.locator("h2:has-text('Preferences')")).not_to_be_visible()
+
+    def test_settings_shows_preview_card(self, page: Page):
+        self._open_settings(page)
+        # Live preview card shows a fake ticket key — scope to settings panel
+        settings_panel = page.locator("div.panel-in:visible")
+        expect(settings_panel.locator("text=SBE-42").first).to_be_visible()
+
+    def test_theme_toggle_light(self, page: Page):
+        self._open_settings(page)
+        page.locator("button:has-text('Light')").first.click()
+        page.wait_for_timeout(300)
+        theme = page.evaluate("document.documentElement.getAttribute('data-theme')")
+        assert theme == "light"
+        # Restore dark
+        page.locator("button:has-text('Dark')").first.click()
+        page.wait_for_timeout(200)
+
+    def test_theme_toggle_dark(self, page: Page):
+        self._open_settings(page)
+        page.locator("button:has-text('Dark')").first.click()
+        page.wait_for_timeout(300)
+        theme = page.evaluate("document.documentElement.getAttribute('data-theme')")
+        assert theme == "dark"
+
+    def test_font_size_slider_changes_html_font_size(self, page: Page):
+        self._open_settings(page)
+        # The slider goes 12–18; click the slider and set value via JS
+        page.evaluate("""
+            const slider = document.querySelector('input[type=range]');
+            slider.value = 16;
+            slider.dispatchEvent(new Event('input', {bubbles: true}));
+        """)
+        page.wait_for_timeout(300)
+        font_size = page.evaluate("document.documentElement.style.fontSize")
+        assert font_size == "16px"
+        # Reset via the button
+        page.locator("button:has-text('Reset all to defaults')").click()
+        page.wait_for_timeout(200)
+
+    def test_font_size_display_updates(self, page: Page):
+        self._open_settings(page)
+        page.evaluate("""
+            const slider = document.querySelector('input[type=range]');
+            slider.value = 17;
+            slider.dispatchEvent(new Event('input', {bubbles: true}));
+        """)
+        page.wait_for_timeout(200)
+        label = page.locator("span.font-mono.text-acc").first
+        expect(label).to_have_text("17px")
+        page.locator("button:has-text('Reset all to defaults')").click()
+
+    def test_font_family_buttons_present(self, page: Page):
+        self._open_settings(page)
+        for label in ["Inter", "Mono", "System"]:
+            expect(page.locator(f"button:has-text('{label}')").first).to_be_visible()
+
+    def test_font_family_selection_updates_state(self, page: Page):
+        self._open_settings(page)
+        page.locator("button:has-text('Mono')").first.click()
+        page.wait_for_timeout(300)
+        ff = page.evaluate("localStorage.getItem('sbe_ff')")
+        assert ff == "mono"
+        # Reset
+        page.locator("button:has-text('Reset all to defaults')").click()
+
+    def test_density_buttons_present(self, page: Page):
+        self._open_settings(page)
+        for label in ["Compact", "Normal", "Comfy"]:
+            expect(page.locator(f"button:has-text('{label}')").first).to_be_visible()
+
+    def test_density_selection_persists(self, page: Page):
+        self._open_settings(page)
+        page.locator("button:has-text('Compact')").first.click()
+        page.wait_for_timeout(300)
+        density = page.evaluate("localStorage.getItem('sbe_density')")
+        assert density == "compact"
+        page.locator("button:has-text('Reset all to defaults')").click()
+
+    def test_accent_color_buttons_visible(self, page: Page):
+        self._open_settings(page)
+        # 8 colour swatches in the accent grid
+        swatches = page.locator("div.grid-cols-4 button")
+        assert swatches.count() >= 4
+
+    def test_accent_color_change_persists(self, page: Page):
+        self._open_settings(page)
+        # Click second swatch (Violet)
+        page.locator("div.grid-cols-4 button").nth(1).click()
+        page.wait_for_timeout(300)
+        saved_acc = page.evaluate("localStorage.getItem('sbe_acc')")
+        assert saved_acc is not None and saved_acc != "#5e6ad2"
+        # Reset
+        page.locator("button:has-text('Reset all to defaults')").click()
+        page.wait_for_timeout(200)
+        assert page.evaluate("localStorage.getItem('sbe_acc')") is None
+
+    def test_reset_restores_defaults(self, page: Page):
+        self._open_settings(page)
+        # Change something
+        page.evaluate("""
+            const slider = document.querySelector('input[type=range]');
+            slider.value = 14;
+            slider.dispatchEvent(new Event('input', {bubbles: true}));
+        """)
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Reset all to defaults')").click()
+        page.wait_for_timeout(200)
+        font_size = page.evaluate("document.documentElement.style.fontSize")
+        assert font_size == "15px"
+
+
+# ── Test: Admin user management ───────────────────────────────────────────────
+
+class TestAdminUserManagement:
+    def _open_user_panel(self, page: Page) -> None:
+        page.locator("div[x-data*='menuOpen'] > button").first.click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Manage users')").first.click()
+        page.wait_for_selector("button:has-text('Add user')", state="visible", timeout=5000)
+
+    def test_users_view_loads(self, page: Page):
+        self._open_user_panel(page)
+        expect(page.locator("button:has-text('Add user')").first).to_be_visible()
+
+    def test_invite_form_opens(self, page: Page):
+        self._open_user_panel(page)
+        page.locator("button:has-text('Add user')").first.click()
+        page.wait_for_selector("input[x-model='userCreateForm.username']", state="visible", timeout=5000)
+        expect(page.locator("input[x-model='userCreateForm.username']")).to_be_visible()
+
+    def test_create_user_generates_invite_url(self, page: Page):
+        self._open_user_panel(page)
+        page.locator("button:has-text('Add user')").first.click()
+        page.wait_for_selector("input[x-model='userCreateForm.username']", state="visible", timeout=5000)
+        username = unique("e2euser")
+        page.fill("input[x-model='userCreateForm.username']", username)
+        page.locator("button:has-text('Create & get invite link')").first.click()
+        # Wait for the green success banner to appear
+        page.wait_for_selector(
+            "text=User created — share this invite link", state="visible", timeout=8000
+        )
+        # Read invite URL from Alpine state (more reliable than querying hidden input)
+        invite_url = page.evaluate(
+            "() => Alpine.store ? '' : (document.querySelector('[x-data]')?._x_dataStack?.[0]?.inviteUrl || '')"
+        )
+        if not invite_url:
+            # Fallback: read the visible readonly input's value attribute
+            invite_url = page.locator("div.bg-green-950\\/40 input[readonly]").input_value()
+        assert "/invite/" in invite_url, f"Expected invite URL, got: {invite_url!r}"
+
+    def test_duplicate_username_shows_error(self, page: Page):
+        self._open_user_panel(page)
+        page.locator("button:has-text('Add user')").first.click()
+        page.wait_for_selector("input[x-model='userCreateForm.username']", state="visible")
+        page.fill("input[x-model='userCreateForm.username']", "admin")
+        page.locator("button:has-text('Create & get invite link')").first.click()
+        page.wait_for_timeout(1000)
+        expect(page.locator("text=already taken").first).to_be_visible(timeout=3000)
+
+    def test_api_create_user_returns_invite_url(self, page: Page):
+        username = unique("apiuser")
+        resp = page.request.post(
+            f"{BASE_URL}/api/users",
+            headers={"Content-Type": "application/json"},
+            data=f'{{"username":"{username}","role":"developer"}}',
+        )
+        assert resp.status == 201
+        body = resp.json()
+        assert "invite_url" in body
+        assert "/invite/" in body["invite_url"]
+        assert body["username"] == username
+
+
+# ── Test: JQL filter chips ────────────────────────────────────────────────────
+
+class TestJQLFilterChips:
+    def _set_jql(self, page: Page, query: str) -> None:
+        page.evaluate(f"document.querySelector('.filter-input').value = {query!r}")
+        page.evaluate(
+            "document.querySelector('.filter-input')"
+            ".dispatchEvent(new Event('input', {bubbles:true}))"
+        )
+        page.wait_for_timeout(400)
+
+    def test_priority_chip_appears(self, page: Page):
+        # Use colon JQL syntax so parsedJQL.priority is set and a chip appears
+        self._set_jql(page, "priority:high")
+        chip = page.locator("span.chip").filter(has_text="high")
+        expect(chip.first).to_be_visible(timeout=3000)
+
+    def test_status_chip_appears(self, page: Page):
+        self._set_jql(page, "status:backlog")
+        chip = page.locator("span.chip").filter(has_text="backlog")
+        expect(chip.first).to_be_visible(timeout=3000)
+
+    def test_title_chip_appears_without_js_error(self, page: Page):
+        # Bare word queries become title searches — this used to throw
+        # Alpine Expression Error: Unexpected string (fixed &quot; bug)
+        self._set_jql(page, "hello")
+        page.wait_for_timeout(300)
+        # The title chip spans shows within the now-visible filter bar
+        title_chip = page.locator("span.chip:not(.bg-accL)")
+        expect(title_chip.first).to_be_visible(timeout=3000)
+        expect(title_chip.first).to_contain_text("hello")
+
+    def test_clear_all_removes_chips(self, page: Page):
+        self._set_jql(page, "status:done")
+        # Wait for chip bar to appear
+        page.locator("span.chip").filter(has_text="done").wait_for(state="visible", timeout=3000)
+        page.locator("button:has-text('Clear all')").first.click()
+        page.wait_for_timeout(400)
+        # Filter bar hides when no active filters
+        expect(page.locator("span.chip").filter(has_text="done")).not_to_be_visible()
+
+    def test_chip_remove_button_clears_filter(self, page: Page):
+        self._set_jql(page, "priority:low")
+        chip = page.locator("span.chip").filter(has_text="low")
+        chip.first.wait_for(state="visible", timeout=3000)
+        # Click the × svg button inside the chip
+        chip.first.locator("button").click()
+        page.wait_for_timeout(400)
+        expect(page.locator("span.chip").filter(has_text="low")).not_to_be_visible()
+
+
+# ── Test: Console error absence ───────────────────────────────────────────────
+
+class TestNoConsoleErrors:
+    """Verify critical interactions produce no JS errors."""
+
+    def test_board_load_no_errors(self, page: Page):
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        page.wait_for_timeout(800)
+        assert errors == [], f"Console errors on board load: {errors}"
+
+    def test_filter_title_chip_no_error(self, page: Page):
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        page.evaluate("document.querySelector('.filter-input').value = 'title=test'")
+        page.evaluate(
+            "document.querySelector('.filter-input')"
+            ".dispatchEvent(new Event('input', {bubbles:true}))"
+        )
+        page.wait_for_timeout(500)
+        assert errors == [], f"Console errors after title filter: {errors}"
+
+    def test_settings_panel_no_errors(self, page: Page):
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        page.locator("div[x-data*='menuOpen'] > button").first.click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").first.click()
+        page.wait_for_timeout(600)
+        assert errors == [], f"Console errors in settings panel: {errors}"
+
+    def test_detail_panel_no_errors(self, page: Page):
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        cards = page.locator("div.ticket-card")
+        if cards.count() > 0:
+            cards.first.click()
+            page.wait_for_timeout(800)
+        assert errors == [], f"Console errors in detail panel: {errors}"
