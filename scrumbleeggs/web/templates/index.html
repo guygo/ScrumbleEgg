@@ -8,18 +8,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700&display=swap" rel="stylesheet" />
   <!-- Apply theme before Alpine to prevent flash -->
   <script>
-    // Apply theme + accent + font-size before paint to avoid flash
+    // Apply all preferences before first paint — prevents flash
     document.documentElement.setAttribute('data-theme', localStorage.getItem('sbe_theme') || 'dark');
     (function() {
-      const acc = localStorage.getItem('sbe_acc');
-      const accH = localStorage.getItem('sbe_accH');
-      const accL = localStorage.getItem('sbe_accL');
-      const fs = localStorage.getItem('sbe_fs');
       const el = document.documentElement;
-      if (acc)  el.style.setProperty('--acc',  acc);
-      if (accH) el.style.setProperty('--accH', accH);
-      if (accL) el.style.setProperty('--accL', accL);
-      if (fs)   el.style.setProperty('--fs',   fs);
+      const acc     = localStorage.getItem('sbe_acc');
+      const accH    = localStorage.getItem('sbe_accH');
+      const accL    = localStorage.getItem('sbe_accL');
+      const ffValue = localStorage.getItem('sbe_ff_value');
+      const fs      = localStorage.getItem('sbe_fs');
+      if (acc)     el.style.setProperty('--acc',  acc);
+      if (accH)    el.style.setProperty('--accH', accH);
+      if (accL)    el.style.setProperty('--accL', accL);
+      if (ffValue) el.style.setProperty('--ff',   ffValue);
+      if (fs)      el.style.fontSize = fs + 'px'; // rem units scale with html font-size
     })();
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -56,7 +58,7 @@
       --bg:#0f0f11; --fg:#e2e2e5;
       --card-shadow:rgba(0,0,0,.4);
       --acc:#5e6ad2; --accH:#6b78e5; --accL:rgba(94,106,210,0.12);
-      --fs:14px;
+      --ff:'Inter',system-ui,sans-serif;
     }
     [data-theme="light"] {
       --n950:#f0f0f6; --n900:#ffffff; --n850:#fafafa; --n800:#f4f4f8;
@@ -68,7 +70,11 @@
 
     [x-cloak]{display:none!important}
     *{box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-    body{background:var(--bg);color:var(--fg);font-family:'Inter',sans-serif;font-size:var(--fs,14px);font-feature-settings:'cv02','cv03','cv04','cv11';transition:background .2s,color .15s,font-size .1s}
+    body{background:var(--bg);color:var(--fg);font-family:var(--ff);font-feature-settings:'cv02','cv03','cv04','cv11';transition:background .2s,color .15s}
+    input,select,button,textarea{font-family:inherit}
+    input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--n700);outline:none;cursor:pointer}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--acc);cursor:pointer;box-shadow:0 0 0 3px var(--accL)}
+    input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--acc);cursor:pointer;border:none}
 
     /* Scrollbars */
     ::-webkit-scrollbar{width:3px;height:3px}
@@ -197,84 +203,168 @@
 <div x-show="settingsOpen" x-cloak class="fixed inset-0 z-50 flex justify-end"
      @keydown.escape.window="settingsOpen=false">
   <div class="absolute inset-0 backdrop bg-black/40" @click="settingsOpen=false"></div>
-  <div class="panel-in relative w-80 h-full bg-n900 border-l border-n700 flex flex-col shadow-2xl overflow-y-auto">
+  <div class="panel-in relative w-[360px] max-w-full h-full bg-n900 border-l border-n700 flex flex-col shadow-2xl">
 
     <!-- Header -->
     <div class="flex items-center justify-between px-5 py-4 border-b border-n700 flex-shrink-0">
-      <h2 class="text-sm font-semibold text-n100">Settings</h2>
-      <button @click="settingsOpen=false" class="text-n500 hover:text-n200 transition-colors">
+      <div>
+        <h2 class="text-sm font-semibold text-n100">Preferences</h2>
+        <p class="text-[10px] text-n500 mt-0.5">Changes apply instantly and persist across sessions</p>
+      </div>
+      <button @click="settingsOpen=false" class="text-n500 hover:text-n200 transition-colors p-1">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
 
-    <div class="p-5 space-y-7">
+    <div class="flex-1 overflow-y-auto">
+      <div class="p-5 space-y-6">
 
-      <!-- Font size -->
-      <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Font size</p>
-        <div class="flex gap-2">
-          <template x-for="opt in [{label:'S',fs:'12px'},{label:'M',fs:'14px'},{label:'L',fs:'16px'}]" :key="opt.label">
-            <button @click="applyFontSize(opt.fs)"
-                    :class="currentFs===opt.fs
-                      ? 'bg-acc text-white border-acc'
-                      : 'bg-n800 text-n300 border-n700 hover:border-n500'"
-                    class="flex-1 h-8 rounded-lg border text-sm font-semibold transition-colors"
-                    x-text="opt.label">
+        <!-- ── Live preview ───────────────────────────────── -->
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-2">Preview</p>
+          <div style="background:var(--n800);border:1px solid var(--n700);border-radius:10px;padding:14px">
+            <!-- ticket key + type -->
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+              <span style="color:var(--acc);font-size:.72em;font-weight:700;letter-spacing:.01em">SBE-42</span>
+              <span style="background:var(--n700);color:var(--n400);font-size:.65em;padding:1px 7px;border-radius:4px">bug</span>
+              <span style="background:var(--accL);color:var(--acc);font-size:.65em;padding:1px 7px;border-radius:4px;font-weight:600;margin-left:auto">HIGH</span>
+            </div>
+            <!-- title -->
+            <p style="font-size:.875em;color:var(--n100);font-weight:500;margin:0 0 10px;line-height:1.4">Implement user authentication flow</p>
+            <!-- footer row -->
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+              <div style="width:18px;height:18px;border-radius:50%;background:var(--accL);border:1px solid var(--acc);display:flex;align-items:center;justify-content:center">
+                <span style="font-size:.6em;font-weight:700;color:var(--acc)">A</span>
+              </div>
+              <span style="color:var(--n500);font-size:.72em">alice · 2d ago · Sprint 3</span>
+            </div>
+            <!-- action button -->
+            <button style="background:var(--acc);color:#fff;border:none;border-radius:6px;padding:5px 0;font-size:.75em;font-weight:600;cursor:pointer;width:100%;font-family:inherit">
+              Move to Review
             </button>
-          </template>
+          </div>
         </div>
-        <p class="text-[10px] text-n600 mt-2">Controls base text size across the app.</p>
-      </div>
 
-      <!-- Accent color -->
-      <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Accent color</p>
-        <div class="grid grid-cols-4 gap-2">
-          <template x-for="c in accentColors" :key="c.name">
-            <button @click="applyAccent(c)"
-                    :title="c.name"
-                    class="relative h-9 rounded-lg border-2 transition-all"
-                    :style="`background:${c.acc}`"
-                    :class="currentAcc===c.acc ? 'border-white scale-95' : 'border-transparent hover:scale-95'">
-              <span x-show="currentAcc===c.acc"
-                    class="absolute inset-0 flex items-center justify-center text-white">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                </svg>
-              </span>
-            </button>
-          </template>
+        <!-- ── Appearance ──────────────────────────────────── -->
+        <div class="border-t border-n800 pt-5">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Appearance</p>
+
+          <!-- Theme -->
+          <div class="mb-4">
+            <p class="text-xs text-n400 mb-2">Theme</p>
+            <div class="grid grid-cols-2 gap-2">
+              <button @click="setTheme('light')"
+                      :class="!darkMode ? 'border-acc bg-accL text-acc' : 'border-n700 bg-n800 text-n400 hover:border-n600'"
+                      class="h-16 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                <span class="text-[11px] font-semibold">Light</span>
+              </button>
+              <button @click="setTheme('dark')"
+                      :class="darkMode ? 'border-acc bg-accL text-acc' : 'border-n700 bg-n800 text-n400 hover:border-n600'"
+                      class="h-16 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                <span class="text-[11px] font-semibold">Dark</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Accent color -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs text-n400">Accent color</p>
+              <span class="text-[10px] text-n500" x-text="accentColors.find(c=>c.acc===currentAcc)?.name || 'Custom'"></span>
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+              <template x-for="c in accentColors" :key="c.name">
+                <button @click="applyAccent(c)" :title="c.name"
+                        class="relative h-10 rounded-xl transition-all duration-150"
+                        :style="`background:${c.acc}`"
+                        :class="currentAcc===c.acc ? 'ring-2 ring-white ring-offset-2 ring-offset-n900 scale-90' : 'hover:scale-90'">
+                  <span x-show="currentAcc===c.acc"
+                        class="absolute inset-0 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  </span>
+                </button>
+              </template>
+            </div>
+          </div>
         </div>
-        <p class="text-[10px] text-n600 mt-2">Applied to buttons, links, and highlights.</p>
-      </div>
 
-      <!-- Theme (already in toolbar but convenient here too) -->
-      <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Theme</p>
-        <div class="flex gap-2">
-          <button @click="setTheme('light')"
-                  :class="!darkMode ? 'bg-acc text-white border-acc' : 'bg-n800 text-n300 border-n700 hover:border-n500'"
-                  class="flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors">
-            Light
+        <!-- ── Typography ──────────────────────────────────── -->
+        <div class="border-t border-n800 pt-5">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Typography</p>
+
+          <!-- Font size slider -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs text-n400">Font size</p>
+              <span class="text-xs font-mono font-semibold text-acc" x-text="currentFs + 'px'"></span>
+            </div>
+            <input type="range" min="12" max="18" step="1"
+                   :value="currentFs"
+                   @input="applyFontSize($event.target.value)"
+                   class="w-full" />
+            <div class="flex justify-between mt-1">
+              <span class="text-[9px] text-n600">A</span>
+              <span class="text-[11px] text-n600" style="font-size:11px">A</span>
+              <span class="text-[13px] text-n600" style="font-size:13px">A</span>
+            </div>
+          </div>
+
+          <!-- Font family -->
+          <div>
+            <p class="text-xs text-n400 mb-2">Font family</p>
+            <div class="grid grid-cols-3 gap-2">
+              <template x-for="f in fontFamilies" :key="f.id">
+                <button @click="applyFontFamily(f)"
+                        :class="currentFf===f.id
+                          ? 'border-acc bg-accL text-acc'
+                          : 'border-n700 bg-n800 text-n400 hover:border-n600'"
+                        class="h-12 rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all">
+                  <span :style="`font-family:${f.value};font-size:14px;font-weight:600`">Aa</span>
+                  <span class="text-[9px] font-medium" x-text="f.label"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Density ─────────────────────────────────────── -->
+        <div class="border-t border-n800 pt-5">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Layout density</p>
+          <div class="grid grid-cols-3 gap-2">
+            <template x-for="d in densities" :key="d.id">
+              <button @click="applyDensity(d)"
+                      :class="currentDensity===d.id
+                        ? 'border-acc bg-accL text-acc'
+                        : 'border-n700 bg-n800 text-n400 hover:border-n600'"
+                      class="h-14 rounded-xl border-2 flex flex-col items-center justify-center gap-1 transition-all">
+                <!-- mini density bars -->
+                <div class="flex flex-col gap-px w-6">
+                  <template x-for="i in d.bars" :key="i">
+                    <div class="rounded-full w-full transition-all"
+                         :style="`height:${d.barH}px;background:currentColor;opacity:.5`"></div>
+                  </template>
+                </div>
+                <span class="text-[9px] font-semibold" x-text="d.label"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- ── Reset ──────────────────────────────────────── -->
+        <div class="border-t border-n800 pt-4 pb-2">
+          <button @click="resetSettings()"
+                  class="w-full text-xs text-n500 hover:text-n300 hover:bg-n800 py-2.5 rounded-lg transition-colors">
+            Reset all to defaults
           </button>
-          <button @click="setTheme('dark')"
-                  :class="darkMode ? 'bg-acc text-white border-acc' : 'bg-n800 text-n300 border-n700 hover:border-n500'"
-                  class="flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors">
-            Dark
-          </button>
         </div>
-      </div>
 
-      <!-- Reset -->
-      <div class="pt-2 border-t border-n700">
-        <button @click="resetSettings()"
-                class="w-full text-xs text-n500 hover:text-n300 py-2 transition-colors">
-          Reset to defaults
-        </button>
       </div>
-
     </div>
   </div>
 </div>
@@ -2546,8 +2636,10 @@ function app() {
 
     // Settings
     settingsOpen: false,
-    currentFs: localStorage.getItem('sbe_fs') || '14px',
+    currentFs: parseInt(localStorage.getItem('sbe_fs') || '15'),
     currentAcc: localStorage.getItem('sbe_acc') || '#5e6ad2',
+    currentFf: localStorage.getItem('sbe_ff') || 'inter',
+    currentDensity: localStorage.getItem('sbe_density') || 'normal',
     accentColors: [
       { name:'Indigo',  acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)'  },
       { name:'Violet',  acc:'#7c3aed', accH:'#8b5cf6', accL:'rgba(124,58,237,0.12)'  },
@@ -2557,6 +2649,16 @@ function app() {
       { name:'Amber',   acc:'#d97706', accH:'#f59e0b', accL:'rgba(217,119,6,0.12)'   },
       { name:'Green',   acc:'#16a34a', accH:'#22c55e', accL:'rgba(22,163,74,0.12)'   },
       { name:'Sky',     acc:'#0284c7', accH:'#0ea5e9', accL:'rgba(2,132,199,0.12)'   },
+    ],
+    fontFamilies: [
+      { id:'inter',  label:'Inter',  value:"'Inter',system-ui,sans-serif" },
+      { id:'mono',   label:'Mono',   value:"ui-monospace,'JetBrains Mono',monospace" },
+      { id:'system', label:'System', value:"system-ui,-apple-system,sans-serif" },
+    ],
+    densities: [
+      { id:'compact', label:'Compact', bars:[1,2,3,4,5], barH:2 },
+      { id:'normal',  label:'Normal',  bars:[1,2,3,4],   barH:3 },
+      { id:'comfy',   label:'Comfy',   bars:[1,2,3],     barH:4 },
     ],
 
     columns: [
@@ -2597,6 +2699,11 @@ function app() {
       const theme = localStorage.getItem('sbe_theme') || 'dark';
       this.darkMode = theme !== 'light';
       document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
+      // Restore settings state to match early-load inline script
+      const savedFf = localStorage.getItem('sbe_ff');
+      if (savedFf) this.currentFf = savedFf;
+      const savedDensity = localStorage.getItem('sbe_density');
+      if (savedDensity) this.currentDensity = savedDensity;
       this.loadWipLimits();
       this.loadSavedFilters();
       // Load current user identity
@@ -2659,9 +2766,23 @@ function app() {
     },
 
     applyFontSize(fs) {
-      this.currentFs = fs;
-      document.documentElement.style.setProperty('--fs', fs);
+      this.currentFs = parseInt(fs);
+      document.documentElement.style.fontSize = fs + 'px';
       localStorage.setItem('sbe_fs', fs);
+    },
+
+    applyFontFamily(f) {
+      this.currentFf = f.id;
+      document.documentElement.style.setProperty('--ff', f.value);
+      localStorage.setItem('sbe_ff', f.id);
+      localStorage.setItem('sbe_ff_value', f.value);
+    },
+
+    applyDensity(d) {
+      this.currentDensity = d.id;
+      const scale = d.id === 'compact' ? '0.85' : d.id === 'comfy' ? '1.15' : '1';
+      document.documentElement.style.setProperty('--density', scale);
+      localStorage.setItem('sbe_density', d.id);
     },
 
     applyAccent(c) {
@@ -2676,15 +2797,18 @@ function app() {
     },
 
     resetSettings() {
-      const defaults = { acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)', fs:'14px' };
       const el = document.documentElement;
-      el.style.setProperty('--acc',  defaults.acc);
-      el.style.setProperty('--accH', defaults.accH);
-      el.style.setProperty('--accL', defaults.accL);
-      el.style.setProperty('--fs',   defaults.fs);
-      ['sbe_acc','sbe_accH','sbe_accL','sbe_fs'].forEach(k => localStorage.removeItem(k));
-      this.currentAcc = defaults.acc;
-      this.currentFs  = defaults.fs;
+      el.style.setProperty('--acc',  '#5e6ad2');
+      el.style.setProperty('--accH', '#6b78e5');
+      el.style.setProperty('--accL', 'rgba(94,106,210,0.12)');
+      el.style.setProperty('--ff',   "'Inter',system-ui,sans-serif");
+      el.style.fontSize = '15px';
+      el.style.removeProperty('--density');
+      ['sbe_acc','sbe_accH','sbe_accL','sbe_fs','sbe_ff','sbe_ff_value','sbe_density'].forEach(k => localStorage.removeItem(k));
+      this.currentAcc     = '#5e6ad2';
+      this.currentFs      = 15;
+      this.currentFf      = 'inter';
+      this.currentDensity = 'normal';
     },
 
     async toggleUserActive(user) {
