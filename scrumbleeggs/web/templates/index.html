@@ -7,7 +7,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700&display=swap" rel="stylesheet" />
   <!-- Apply theme before Alpine to prevent flash -->
-  <script>document.documentElement.setAttribute('data-theme',localStorage.getItem('sbe_theme')||'dark')</script>
+  <script>
+    // Apply theme + accent + font-size before paint to avoid flash
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('sbe_theme') || 'dark');
+    (function() {
+      const acc = localStorage.getItem('sbe_acc');
+      const accH = localStorage.getItem('sbe_accH');
+      const accL = localStorage.getItem('sbe_accL');
+      const fs = localStorage.getItem('sbe_fs');
+      const el = document.documentElement;
+      if (acc)  el.style.setProperty('--acc',  acc);
+      if (accH) el.style.setProperty('--accH', accH);
+      if (accL) el.style.setProperty('--accL', accL);
+      if (fs)   el.style.setProperty('--fs',   fs);
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>marked.setOptions({ breaks: true, gfm: true });</script>
@@ -22,7 +36,7 @@
             n950:'var(--n950)', n900:'var(--n900)', n850:'var(--n850)', n800:'var(--n800)',
             n750:'var(--n750)', n700:'var(--n700)', n600:'var(--n600)', n500:'var(--n500)',
             n400:'var(--n400)', n300:'var(--n300)', n200:'var(--n200)', n100:'var(--n100)', n50:'var(--n50)',
-            acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)',
+            acc:'var(--acc)', accH:'var(--accH)', accL:'var(--accL)',
             g400:'#4ade80', g900:'rgba(74,222,128,0.12)',
             r400:'#f87171', r900:'rgba(248,113,113,0.12)',
             y400:'#fbbf24', y900:'rgba(251,191,36,0.12)',
@@ -41,6 +55,8 @@
       --n400:#6e6e76; --n300:#94949d; --n200:#b8b8c0; --n100:#dcdce0; --n50:#f0f0f2;
       --bg:#0f0f11; --fg:#e2e2e5;
       --card-shadow:rgba(0,0,0,.4);
+      --acc:#5e6ad2; --accH:#6b78e5; --accL:rgba(94,106,210,0.12);
+      --fs:14px;
     }
     [data-theme="light"] {
       --n950:#f0f0f6; --n900:#ffffff; --n850:#fafafa; --n800:#f4f4f8;
@@ -52,7 +68,7 @@
 
     [x-cloak]{display:none!important}
     *{box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-    body{background:var(--bg);color:var(--fg);font-family:'Inter',sans-serif;font-feature-settings:'cv02','cv03','cv04','cv11';transition:background .2s,color .15s}
+    body{background:var(--bg);color:var(--fg);font-family:'Inter',sans-serif;font-size:var(--fs,14px);font-feature-settings:'cv02','cv03','cv04','cv11';transition:background .2s,color .15s,font-size .1s}
 
     /* Scrollbars */
     ::-webkit-scrollbar{width:3px;height:3px}
@@ -174,6 +190,94 @@
 </head>
 
 <body class="h-screen flex flex-col overflow-hidden" @keydown.window="handleKey($event)">
+
+<!-- ══════════════════════════════════════════════
+     SETTINGS PANEL
+══════════════════════════════════════════════ -->
+<div x-show="settingsOpen" x-cloak class="fixed inset-0 z-50 flex justify-end"
+     @keydown.escape.window="settingsOpen=false">
+  <div class="absolute inset-0 backdrop bg-black/40" @click="settingsOpen=false"></div>
+  <div class="panel-in relative w-80 h-full bg-n900 border-l border-n700 flex flex-col shadow-2xl overflow-y-auto">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-n700 flex-shrink-0">
+      <h2 class="text-sm font-semibold text-n100">Settings</h2>
+      <button @click="settingsOpen=false" class="text-n500 hover:text-n200 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="p-5 space-y-7">
+
+      <!-- Font size -->
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Font size</p>
+        <div class="flex gap-2">
+          <template x-for="opt in [{label:'S',fs:'12px'},{label:'M',fs:'14px'},{label:'L',fs:'16px'}]" :key="opt.label">
+            <button @click="applyFontSize(opt.fs)"
+                    :class="currentFs===opt.fs
+                      ? 'bg-acc text-white border-acc'
+                      : 'bg-n800 text-n300 border-n700 hover:border-n500'"
+                    class="flex-1 h-8 rounded-lg border text-sm font-semibold transition-colors"
+                    x-text="opt.label">
+            </button>
+          </template>
+        </div>
+        <p class="text-[10px] text-n600 mt-2">Controls base text size across the app.</p>
+      </div>
+
+      <!-- Accent color -->
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Accent color</p>
+        <div class="grid grid-cols-4 gap-2">
+          <template x-for="c in accentColors" :key="c.name">
+            <button @click="applyAccent(c)"
+                    :title="c.name"
+                    class="relative h-9 rounded-lg border-2 transition-all"
+                    :style="`background:${c.acc}`"
+                    :class="currentAcc===c.acc ? 'border-white scale-95' : 'border-transparent hover:scale-95'">
+              <span x-show="currentAcc===c.acc"
+                    class="absolute inset-0 flex items-center justify-center text-white">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                </svg>
+              </span>
+            </button>
+          </template>
+        </div>
+        <p class="text-[10px] text-n600 mt-2">Applied to buttons, links, and highlights.</p>
+      </div>
+
+      <!-- Theme (already in toolbar but convenient here too) -->
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-n500 mb-3">Theme</p>
+        <div class="flex gap-2">
+          <button @click="setTheme('light')"
+                  :class="!darkMode ? 'bg-acc text-white border-acc' : 'bg-n800 text-n300 border-n700 hover:border-n500'"
+                  class="flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors">
+            Light
+          </button>
+          <button @click="setTheme('dark')"
+                  :class="darkMode ? 'bg-acc text-white border-acc' : 'bg-n800 text-n300 border-n700 hover:border-n500'"
+                  class="flex-1 h-8 rounded-lg border text-xs font-semibold transition-colors">
+            Dark
+          </button>
+        </div>
+      </div>
+
+      <!-- Reset -->
+      <div class="pt-2 border-t border-n700">
+        <button @click="resetSettings()"
+                class="w-full text-xs text-n500 hover:text-n300 py-2 transition-colors">
+          Reset to defaults
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════
      DETAIL SIDE PANEL
@@ -1052,6 +1156,11 @@
                 class="w-full text-left px-3 py-1.5 text-xs text-n300 hover:bg-n800 rounded-lg transition-colors">
           Manage users
         </button>
+        <button @click="menuOpen=false; settingsOpen=true"
+                class="w-full text-left px-3 py-1.5 text-xs text-n300 hover:bg-n800 rounded-lg transition-colors">
+          Settings
+        </button>
+        <div class="border-t border-n700 my-1"></div>
         <button @click="logout()"
                 class="w-full text-left px-3 py-1.5 text-xs text-r400 hover:bg-n800 rounded-lg transition-colors">
           Sign out
@@ -2435,6 +2544,21 @@ function app() {
     userCreateOpen: false, userCreateError: '',
     inviteUrl: '', inviteCopied: false,
 
+    // Settings
+    settingsOpen: false,
+    currentFs: localStorage.getItem('sbe_fs') || '14px',
+    currentAcc: localStorage.getItem('sbe_acc') || '#5e6ad2',
+    accentColors: [
+      { name:'Indigo',  acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)'  },
+      { name:'Violet',  acc:'#7c3aed', accH:'#8b5cf6', accL:'rgba(124,58,237,0.12)'  },
+      { name:'Pink',    acc:'#db2777', accH:'#ec4899', accL:'rgba(219,39,119,0.12)'  },
+      { name:'Red',     acc:'#dc2626', accH:'#ef4444', accL:'rgba(220,38,38,0.12)'   },
+      { name:'Orange',  acc:'#ea580c', accH:'#f97316', accL:'rgba(234,88,12,0.12)'   },
+      { name:'Amber',   acc:'#d97706', accH:'#f59e0b', accL:'rgba(217,119,6,0.12)'   },
+      { name:'Green',   acc:'#16a34a', accH:'#22c55e', accL:'rgba(22,163,74,0.12)'   },
+      { name:'Sky',     acc:'#0284c7', accH:'#0ea5e9', accL:'rgba(2,132,199,0.12)'   },
+    ],
+
     columns: [
       { status:'backlog',     label:'Backlog',     icon: svgStatusIcon('backlog')     },
       { status:'in_progress', label:'In Progress', icon: svgStatusIcon('in_progress') },
@@ -2485,8 +2609,11 @@ function app() {
     },
 
     toggleTheme() {
-      this.darkMode = !this.darkMode;
-      const theme = this.darkMode ? 'dark' : 'light';
+      this.setTheme(this.darkMode ? 'light' : 'dark');
+    },
+
+    setTheme(theme) {
+      this.darkMode = theme === 'dark';
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('sbe_theme', theme);
     },
@@ -2529,6 +2656,35 @@ function app() {
         this.inviteCopied = true;
         setTimeout(() => { this.inviteCopied = false; }, 2000);
       });
+    },
+
+    applyFontSize(fs) {
+      this.currentFs = fs;
+      document.documentElement.style.setProperty('--fs', fs);
+      localStorage.setItem('sbe_fs', fs);
+    },
+
+    applyAccent(c) {
+      this.currentAcc = c.acc;
+      const el = document.documentElement;
+      el.style.setProperty('--acc',  c.acc);
+      el.style.setProperty('--accH', c.accH);
+      el.style.setProperty('--accL', c.accL);
+      localStorage.setItem('sbe_acc',  c.acc);
+      localStorage.setItem('sbe_accH', c.accH);
+      localStorage.setItem('sbe_accL', c.accL);
+    },
+
+    resetSettings() {
+      const defaults = { acc:'#5e6ad2', accH:'#6b78e5', accL:'rgba(94,106,210,0.12)', fs:'14px' };
+      const el = document.documentElement;
+      el.style.setProperty('--acc',  defaults.acc);
+      el.style.setProperty('--accH', defaults.accH);
+      el.style.setProperty('--accL', defaults.accL);
+      el.style.setProperty('--fs',   defaults.fs);
+      ['sbe_acc','sbe_accH','sbe_accL','sbe_fs'].forEach(k => localStorage.removeItem(k));
+      this.currentAcc = defaults.acc;
+      this.currentFs  = defaults.fs;
     },
 
     async toggleUserActive(user) {
