@@ -45,6 +45,7 @@ class TicketCreate:
     sprint: str = ""
     project: str = ""
     story_points: Optional[int] = None
+    due_date: Optional[str] = None  # ISO date YYYY-MM-DD
     role: Optional[Role] = None
     # Developer fields
     acceptance_criteria: str = ""
@@ -82,6 +83,8 @@ class TicketUpdate:
     sprint: Optional[str] = None
     project: Optional[str] = None
     story_points: Optional[int] = None
+    due_date: Optional[str] = None  # ISO date YYYY-MM-DD
+    is_template: Optional[int] = None  # 0=false, 1=true
     acceptance_criteria: Optional[str] = None
     dev_checklist: Optional[list] = None
     qa_notes: Optional[str] = None

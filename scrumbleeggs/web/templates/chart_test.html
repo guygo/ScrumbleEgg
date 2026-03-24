@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chart.js Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    body { background: #1a1a1a; color: white; font-family: sans-serif; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .chart-box { background: #2a2a2a; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .status { padding: 10px; border-radius: 4px; margin: 10px 0; }
+    .ok { background: #1a4a1a; }
+    .error { background: #4a1a1a; }
+    #log { background: #0a0a0a; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Chart.js Test Page</h1>
+    
+    <div id="status"></div>
+    
+    <div class="chart-box">
+      <h3>Test Chart</h3>
+      <canvas id="testChart" style="width:100%;height:200px;"></canvas>
+    </div>
+    
+    <h3>Console Log</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    
+    function log(msg) {
+      console.log(msg);
+      logEl.textContent += msg + '\n';
+    }
+    
+    function setStatus(ok, msg) {
+      statusEl.innerHTML = `<div class="status ${ok ? 'ok' : 'error'}">${ok ? '✓' : '✗'} ${msg}</div>`;
+    }
+    
+    async function test() {
+      log('Starting test...');
+      
+      // Check Chart.js
+      log('Chart.js loaded: ' + (typeof Chart !== 'undefined'));
+      if (typeof Chart === 'undefined') {
+        setStatus(false, 'Chart.js failed to load!');
+        return;
+      }
+      log('Chart.js version: ' + Chart.version);
+      
+      // Check canvas
+      const canvas = document.getElementById('testChart');
+      log('Canvas found: ' + !!canvas);
+      log('Canvas size: ' + canvas.offsetWidth + 'x' + canvas.offsetHeight);
+      
+      // Create chart
+      try {
+        log('Creating chart...');
+        const chart = new Chart(canvas.getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: ['1s', '2s', '3s', '4s', '5s', '6s', '7s', '8s', '9s', '10s'],
+            datasets: [{
+              label: 'Test Data',
+              data: [12, 19, 3, 5, 2, 3, 15, 8, 12, 7],
+              borderColor: '#4ade80',
+              backgroundColor: 'rgba(74, 222, 128, 0.1)',
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: 'white' } } },
+            scales: {
+              x: { ticks: { color: '#888' }, grid: { color: '#333' } },
+              y: { ticks: { color: '#888' }, grid: { color: '#333' } }
+            }
+          }
+        });
+        log('Chart created successfully!');
+        log('Chart instance: ' + !!chart);
+        setStatus(true, 'Chart.js is working! If you see a chart above, everything is fine.');
+      } catch (e) {
+        log('ERROR creating chart: ' + e.message);
+        setStatus(false, 'Failed to create chart: ' + e.message);
+      }
+    }
+    
+    // Run test when page loads
+    window.addEventListener('load', test);
+  </script>
+</body>
+</html>

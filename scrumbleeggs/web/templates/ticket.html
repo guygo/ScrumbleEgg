@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ ticket.key }} · Scrumbleeggs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>marked.setOptions({ breaks: true, gfm: true });</script>
+  <script>
+    tailwind.config = {
+      theme: {
+        fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
+        extend: {
+          colors: {
+            n950:'#09090b', n900:'#111113', n850:'#161618', n800:'#1c1c1f',
+            n750:'#212124', n700:'#2a2a2e', n600:'#3a3a3f', n500:'#515158',
+            n400:'#6e6e76', n300:'#94949d', n200:'#b8b8c0', n100:'#dcdce0', n50:'#f0f0f2',
+            acc:'#5e6ad2', g400:'#4ade80', r400:'#f87171', y400:'#fbbf24', o400:'#fb923c',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+    body{background:#0f0f11;color:#e2e2e5;font-family:'Inter',sans-serif}
+    ::-webkit-scrollbar{width:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#2a2a2e;border-radius:9px}
+
+    .prop-row{display:flex;align-items:center;padding:8px 16px;border-bottom:1px solid #2a2a2e;transition:background 80ms}
+    .prop-row:hover{background:#1c1c1f}
+    .prop-label{font-size:11px;font-weight:500;color:#515158;text-transform:uppercase;letter-spacing:.06em;width:120px;flex-shrink:0}
+    .prop-value{font-size:13px;color:#b8b8c0}
+
+    .section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#515158;margin-bottom:8px}
+
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;border:1px solid}
+
+    .checklist-item{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:8px;transition:background 80ms}
+    .checklist-item:hover{background:#1c1c1f}
+
+    .pri-badge-critical{background:rgba(248,113,113,.12);color:#f87171;border-color:rgba(248,113,113,.25)}
+    .pri-badge-high{background:rgba(251,146,60,.12);color:#fb923c;border-color:rgba(251,146,60,.25)}
+    .pri-badge-medium{background:rgba(251,191,36,.12);color:#fbbf24;border-color:rgba(251,191,36,.25)}
+    .pri-badge-low{background:rgba(81,81,88,.2);color:#6e6e76;border-color:rgba(81,81,88,.3)}
+
+    .status-badge-backlog{background:rgba(81,81,88,.2);color:#94949d;border-color:rgba(81,81,88,.3)}
+    .status-badge-in_progress{background:rgba(94,106,210,.12);color:#5e6ad2;border-color:rgba(94,106,210,.25)}
+    .status-badge-review{background:rgba(251,191,36,.12);color:#fbbf24;border-color:rgba(251,191,36,.25)}
+    .status-badge-done{background:rgba(74,222,128,.12);color:#4ade80;border-color:rgba(74,222,128,.25)}
+
+    .type-bug{background:rgba(248,113,113,.12);color:#f87171;border-color:rgba(248,113,113,.25)}
+    .type-story{background:rgba(94,106,210,.12);color:#5e6ad2;border-color:rgba(94,106,210,.25)}
+    .type-task{background:rgba(81,81,88,.2);color:#6e6e76;border-color:rgba(81,81,88,.3)}
+
+    .content-block{background:#1c1c1f;border:1px solid #2a2a2e;border-radius:10px;padding:14px 16px;font-size:13px;color:#b8b8c0;line-height:1.7}
+    .prose-dark { font-size:13px; color:#b8b8c0; line-height:1.7; }
+    .prose-dark h1,.prose-dark h2,.prose-dark h3 { color:#e2e2e5; font-weight:600; margin:12px 0 6px; }
+    .prose-dark h1 { font-size:15px; } .prose-dark h2 { font-size:14px; } .prose-dark h3 { font-size:13px; }
+    .prose-dark p { margin:0 0 8px; }
+    .prose-dark ul,.prose-dark ol { padding-left:20px; margin:0 0 8px; }
+    .prose-dark li { margin:2px 0; }
+    .prose-dark code { background:#2a2a2e; color:#a78bfa; padding:1px 5px; border-radius:4px; font-size:12px; font-family:ui-monospace,monospace; }
+    .prose-dark pre { background:#1c1c1f; border:1px solid #2a2a2e; border-radius:8px; padding:12px; overflow-x:auto; margin:8px 0; }
+    .prose-dark pre code { background:none; color:#e2e2e5; padding:0; }
+    .prose-dark blockquote { border-left:2px solid #3a3a3f; padding-left:12px; color:#515158; margin:8px 0; }
+    .prose-dark a { color:#5e6ad2; text-decoration:none; }
+    .prose-dark a:hover { text-decoration:underline; }
+    .prose-dark hr { border:none; border-top:1px solid #2a2a2e; margin:12px 0; }
+    .prose-dark table { width:100%; border-collapse:collapse; margin:8px 0; }
+    .prose-dark th { background:#1c1c1f; color:#e2e2e5; padding:6px 10px; font-size:11px; text-align:left; border:1px solid #2a2a2e; }
+    .prose-dark td { padding:6px 10px; border:1px solid #2a2a2e; font-size:12px; }
+
+    @media print{.no-print{display:none}}
+  </style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- Top bar -->
+<header class="sticky top-0 z-30 bg-n900/95 backdrop-blur border-b border-n800">
+  <div class="max-w-5xl mx-auto px-6 h-12 flex items-center gap-4">
+    <!-- Back -->
+    <a href="/" class="flex items-center gap-1.5 text-n500 hover:text-n200 transition-colors text-xs font-medium no-print">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 19l-7-7 7-7"/>
+      </svg>
+      Board
+    </a>
+    <div class="w-px h-4 bg-n700 no-print"></div>
+
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-xs">
+      {% if ticket.project %}
+      <span class="text-n500">{{ ticket.project }}</span>
+      <span class="text-n700">/</span>
+      {% endif %}
+      <span class="font-mono font-semibold text-acc">{{ ticket.key }}</span>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <!-- Actions -->
+    <div class="flex items-center gap-2 no-print">
+      <span class="badge status-badge-{{ ticket.status }}">
+        {{ ticket.status.replace('_', ' ') | title }}
+      </span>
+      <button onclick="window.print()"
+              class="px-3 py-1.5 text-xs text-n400 hover:text-n100 hover:bg-n700 rounded-lg transition-colors">
+        Print
+      </button>
+      <a href="/"
+         class="px-3 py-1.5 text-xs font-semibold text-white bg-acc hover:bg-acc/90 rounded-lg transition-colors">
+        Open Board
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- Main layout -->
+<div class="max-w-5xl mx-auto px-6 py-8 flex gap-8">
+
+  <!-- ── Left: metadata sidebar ── -->
+  <aside class="w-56 flex-shrink-0">
+    <div class="sticky top-20 space-y-1">
+
+      <div class="rounded-xl border border-n700 overflow-hidden mb-4">
+        <div class="prop-row">
+          <span class="prop-label">Status</span>
+          <span class="badge status-badge-{{ ticket.status }} prop-value">{{ ticket.status.replace('_',' ') | title }}</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Priority</span>
+          <span class="badge pri-badge-{{ ticket.priority }} prop-value">{{ ticket.priority | title }}</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Type</span>
+          <span class="badge type-{{ ticket.ticket_type }} prop-value">{{ ticket.ticket_type | title }}</span>
+        </div>
+        {% if ticket.assignee %}
+        <div class="prop-row">
+          <span class="prop-label">Assignee</span>
+          <span class="prop-value">{{ ticket.assignee }}</span>
+        </div>
+        {% endif %}
+        {% if ticket.sprint %}
+        <div class="prop-row">
+          <span class="prop-label">Sprint</span>
+          <span class="prop-value">{{ ticket.sprint }}</span>
+        </div>
+        {% endif %}
+        {% if ticket.project %}
+        <div class="prop-row">
+          <span class="prop-label">Project</span>
+          <span class="prop-value">{{ ticket.project }}</span>
+        </div>
+        {% endif %}
+        {% if ticket.story_points %}
+        <div class="prop-row">
+          <span class="prop-label">Points</span>
+          <span class="prop-value font-mono font-semibold text-acc">{{ ticket.story_points }}p</span>
+        </div>
+        {% endif %}
+        {% if ticket.role %}
+        <div class="prop-row">
+          <span class="prop-label">Role</span>
+          <span class="prop-value capitalize">{{ ticket.role }}</span>
+        </div>
+        {% endif %}
+        {% if ticket.created_at %}
+        <div class="prop-row border-b-0">
+          <span class="prop-label">Created</span>
+          <span class="prop-value text-n500 text-xs">{{ ticket.created_at[:10] }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Copy link -->
+      <button onclick="navigator.clipboard.writeText(window.location.href).then(()=>this.textContent='Copied!')"
+              class="no-print w-full text-left px-3 py-2 rounded-lg text-xs text-n500 hover:text-n200
+                     hover:bg-n800 transition-colors border border-n700">
+        Copy link
+      </button>
+
+    </div>
+  </aside>
+
+  <!-- ── Right: content ── -->
+  <main class="flex-1 min-w-0 space-y-6">
+
+    <!-- Title -->
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="font-mono text-sm font-semibold text-acc">{{ ticket.key }}</span>
+        {% if ticket.role == 'developer' %}
+        <span class="text-xs text-n500 bg-n800 border border-n700 rounded px-2 py-0.5">Dev</span>
+        {% elif ticket.role == 'tester' %}
+        <span class="text-xs text-n500 bg-n800 border border-n700 rounded px-2 py-0.5">QA</span>
+        {% endif %}
+      </div>
+      <h1 class="text-2xl font-bold text-n50 leading-snug">{{ ticket.title }}</h1>
+    </div>
+
+    <!-- Description -->
+    {% if ticket.description %}
+    <div>
+      <p class="section-title">Description</p>
+      <div id="desc-block" class="content-block prose-dark"></div>
+    </div>
+    {% endif %}
+
+    <!-- Acceptance Criteria -->
+    {% if ticket.acceptance_criteria %}
+    <div>
+      <p class="section-title">Acceptance Criteria</p>
+      <div id="ac-block" class="content-block prose-dark border-l-2 border-l-acc"></div>
+    </div>
+    {% endif %}
+
+    <!-- Dev Checklist -->
+    {% if ticket.dev_checklist %}
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <p class="section-title mb-0">Dev Checklist</p>
+        {% set done_count = ticket.dev_checklist | selectattr('done') | list | length %}
+        {% set total_count = ticket.dev_checklist | length %}
+        <span class="text-xs text-n500">{{ done_count }}/{{ total_count }}</span>
+      </div>
+      <!-- Progress bar -->
+      {% if total_count > 0 %}
+      <div class="h-1 bg-n700 rounded-full mb-3 overflow-hidden">
+        <div class="h-1 bg-acc rounded-full transition-all" style="width:{{ (done_count / total_count * 100) | round | int }}%"></div>
+      </div>
+      {% endif %}
+      <div class="rounded-xl border border-n700 overflow-hidden">
+        {% for item in ticket.dev_checklist %}
+        <div class="checklist-item border-b border-n800 last:border-b-0">
+          <div class="w-4 h-4 rounded border-[1.5px] flex items-center justify-center flex-shrink-0
+                      {% if item.done %}bg-acc border-acc{% else %}border-n600{% endif %}">
+            {% if item.done %}
+            <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 12 12">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 6l3 3 5-5"/>
+            </svg>
+            {% endif %}
+          </div>
+          <span class="text-[13px] {% if item.done %}line-through text-n600{% else %}text-n200{% endif %}">
+            {% if item.item %}{{ item.item }}{% else %}{{ item }}{% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Test Plan -->
+    {% if ticket.test_plan %}
+    <div>
+      <p class="section-title">Test Plan</p>
+      <div id="testplan-block" class="content-block prose-dark border-l-2 border-l-y400"></div>
+    </div>
+    {% endif %}
+
+    <!-- Test Cases -->
+    {% if ticket.test_cases %}
+    <div>
+      <p class="section-title">Test Cases</p>
+      <div class="space-y-2">
+        {% for tc in ticket.test_cases %}
+        <div class="bg-n800 border border-n700 rounded-xl p-4">
+          {% if tc is mapping %}
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold text-n100">{{ tc.name or '' }}</span>
+            <span class="badge
+              {% if tc.status == 'pass' %}bg-g400/10 text-g400 border-g400/25
+              {% elif tc.status == 'fail' %}bg-r400/10 text-r400 border-r400/25
+              {% else %}bg-n700 text-n500 border-n600{% endif %}">
+              {{ tc.status or 'pending' }}
+            </span>
+          </div>
+          {% if tc.steps %}<p class="text-xs text-n500 mb-1"><span class="text-n600">Steps:</span> {{ tc.steps }}</p>{% endif %}
+          {% if tc.expected %}<p class="text-xs text-n500"><span class="text-n600">Expected:</span> {{ tc.expected }}</p>{% endif %}
+          {% else %}
+          <p class="text-[13px] text-n200">{{ tc }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- QA Notes -->
+    {% if ticket.qa_notes %}
+    <div>
+      <p class="section-title">QA Notes</p>
+      <div id="qanotes-block" class="content-block prose-dark border-l-2 border-l-o400"></div>
+    </div>
+    {% endif %}
+
+  </main>
+</div>
+
+<script>
+(function() {
+  var fields = [
+    ['desc-block',     {{ ticket.description | tojson if ticket.description else 'null' }}],
+    ['ac-block',       {{ ticket.acceptance_criteria | tojson if ticket.acceptance_criteria else 'null' }}],
+    ['testplan-block', {{ ticket.test_plan | tojson if ticket.test_plan else 'null' }}],
+    ['qanotes-block',  {{ ticket.qa_notes | tojson if ticket.qa_notes else 'null' }}],
+  ];
+  fields.forEach(function(pair) {
+    var el = document.getElementById(pair[0]);
+    if (el && pair[1]) el.innerHTML = marked.parse(pair[1]);
+  });
+})();
+</script>
+</body>
+</html>

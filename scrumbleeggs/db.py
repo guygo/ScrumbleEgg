@@ -197,6 +197,7 @@ class Ticket(Base):
     sprint = Column(String(200), nullable=True, index=True)
     project = Column(String(200), nullable=True, index=True)
     story_points = Column(Integer, nullable=True)
+    due_date = Column(String(10), nullable=True)  # ISO date string YYYY-MM-DD
     role = Column(String(20), nullable=True)
 
     # Developer-specific fields
@@ -211,6 +212,7 @@ class Ticket(Base):
     # Admin custom fields data
     custom_data = Column(JSON, nullable=True)  # dict[str, Any]
 
+    is_template = Column(Integer, default=0)  # 1 = this ticket is a template
     # Subtask support
     parent_key = Column(String(32), ForeignKey("tickets.key"), nullable=True)
 
@@ -240,6 +242,7 @@ class Ticket(Base):
             "sprint": self.sprint,
             "project": self.project,
             "story_points": self.story_points,
+            "due_date": self.due_date,
             "role": self.role,
             "acceptance_criteria": self.acceptance_criteria,
             "dev_checklist": self.dev_checklist,
@@ -247,6 +250,7 @@ class Ticket(Base):
             "test_cases": self.test_cases,
             "test_plan": self.test_plan,
             "custom_data": self.custom_data,
+            "is_template": bool(self.is_template),
             "parent_key": self.parent_key,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -307,6 +311,34 @@ class TimeEntry(Base):
             "minutes": self.minutes,
             "note": self.note,
             "logged_at": self.logged_at.isoformat() if self.logged_at else None,
+        }
+
+
+class TicketActivityLog(Base):
+    """Immutable audit trail of changes made to a ticket."""
+
+    __tablename__ = "ticket_activity_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_key = Column(String(32), nullable=False, index=True)
+    actor = Column(String(128), nullable=False, default="system")
+    action = Column(String(64), nullable=False)   # e.g. "created", "status_changed", "comment_added"
+    field = Column(String(64), nullable=True)      # which field changed (when action="field_changed")
+    old_value = Column(Text, nullable=True)
+    new_value = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
+
+    def to_dict(self) -> dict:
+        """Serialize activity log entry to a plain dictionary."""
+        return {
+            "id": self.id,
+            "ticket_key": self.ticket_key,
+            "actor": self.actor,
+            "action": self.action,
+            "field": self.field,
+            "old_value": self.old_value,
+            "new_value": self.new_value,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -469,6 +501,8 @@ class Database:
             # Auth migrations
             for auth_sql in [
                 "ALTER TABLE tickets ADD COLUMN created_by VARCHAR(36)",
+                "ALTER TABLE tickets ADD COLUMN due_date TEXT",
+                "ALTER TABLE tickets ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0",
             ]:
                 try:
                     conn.execute(text(auth_sql))

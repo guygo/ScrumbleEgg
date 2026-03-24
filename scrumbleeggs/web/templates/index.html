@@ -52,20 +52,24 @@
   <style>
     /* ── Theme variables ─────────────────────────────────────── */
     :root, [data-theme="dark"] {
-      --n950:#09090b; --n900:#111113; --n850:#161618; --n800:#1c1c1f;
-      --n750:#212124; --n700:#2a2a2e; --n600:#3a3a3f; --n500:#515158;
-      --n400:#6e6e76; --n300:#94949d; --n200:#b8b8c0; --n100:#dcdce0; --n50:#f0f0f2;
-      --bg:#0f0f11; --fg:#e2e2e5;
-      --card-shadow:rgba(0,0,0,.4);
-      --acc:#5e6ad2; --accH:#6b78e5; --accL:rgba(94,106,210,0.12);
+      /* Surface scale: bg → n950 (inset) → n900 (cards) → n850 (panels) → n800 (inputs) */
+      --n950:#0a0a0f; --n900:#18181e; --n850:#1e1e27; --n800:#25252f;
+      --n750:#2c2c38; --n700:#3a3a48; --n600:#4e4e5e;
+      --n500:#606069; /* secondary labels — visible on dark surfaces */
+      --n400:#868692; --n300:#a8a8b3; --n200:#c6c6d0; --n100:#e2e2e8; --n50:#f4f4f7;
+      --bg:#0d0d12; --fg:#dcdce4;
+      --card-shadow:rgba(0,0,0,.55);
+      --acc:#5e6ad2; --accH:#6b78e5; --accL:rgba(94,106,210,0.13);
       --ff:'Inter',system-ui,sans-serif;
     }
     [data-theme="light"] {
-      --n950:#f0f0f6; --n900:#ffffff; --n850:#fafafa; --n800:#f4f4f8;
-      --n750:#ebebf0; --n700:#e0e0e8; --n600:#c4c4d2; --n500:#7878a0;
-      --n400:#545468; --n300:#383850; --n200:#222230; --n100:#141420; --n50:#0a0a14;
-      --bg:#f0f0f6; --fg:#141420;
-      --card-shadow:rgba(0,0,0,.08);
+      /* Chrome/panels: neutral gray page, white card surfaces */
+      --n950:#f1f1f5; --n900:#ffffff; --n850:#f7f7fa; --n800:#eeeef3;
+      --n750:#e5e5eb; --n700:#d0d0dc; --n600:#9090a4;
+      --n500:#55556a; /* secondary text: ~8:1 on white */
+      --n400:#3c3c4e; --n300:#272736; --n200:#181824; --n100:#0e0e1a; --n50:#060610;
+      --bg:#f1f1f5; --fg:#181824;
+      --card-shadow:rgba(0,0,0,.06);
     }
 
     [x-cloak]{display:none!important}
@@ -83,9 +87,9 @@
     ::-webkit-scrollbar-thumb:hover{background:var(--n500)}
 
     /* Card */
-    .ticket-card{transition:background 80ms,box-shadow 80ms,transform 80ms}
-    .ticket-card:hover{background:var(--n750);box-shadow:0 2px 12px var(--card-shadow);transform:translateY(-1px)}
-    .ticket-card:active{transform:translateY(0);box-shadow:none}
+    .ticket-card{background:var(--n900);border:1px solid var(--n750);box-shadow:0 1px 3px var(--card-shadow);transition:background 80ms,box-shadow 80ms,border-color 80ms,transform 80ms}
+    .ticket-card:hover{background:var(--n850);box-shadow:0 4px 16px var(--card-shadow);border-color:var(--n700);transform:translateY(-1px)}
+    .ticket-card:active{transform:translateY(0);box-shadow:0 1px 3px var(--card-shadow)}
 
     /* Priority left edge */
     .pri-edge{width:2px;border-radius:1px;flex-shrink:0;align-self:stretch}
@@ -140,9 +144,22 @@
 
     /* Col scroll */
     .col-scroll{flex:1;overflow-y:auto;overflow-x:hidden;min-height:120px}
+    /* Column collapse strip */
+    .col-strip-label{writing-mode:vertical-rl;transform:rotate(180deg);user-select:none}
+    /* Template ticket */
+    .template-badge{background:rgba(251,191,36,.15);color:#fbbf24;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;letter-spacing:.04em;text-transform:uppercase;line-height:1.4;flex-shrink:0}
+    /* Due date overdue */
+    .overdue-card{box-shadow:inset 2px 0 0 #f87171!important}
+    .due-badge{font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;line-height:1.4}
+    .due-badge-ok{background:rgba(74,222,128,.15);color:#4ade80}
+    .due-badge-soon{background:rgba(251,191,36,.15);color:#fbbf24}
+    .due-badge-overdue{background:rgba(248,113,113,.15);color:#f87171}
+    /* @mention chip (rendered in comment bodies) */
+    .mention-chip{background:rgba(94,106,210,.18);color:#818cf8;padding:0 4px;border-radius:4px;font-weight:600;font-size:.875em;white-space:nowrap}
 
     /* Drag & drop */
     .drag-ghost{opacity:0!important}
+    .link-target{box-shadow:inset 0 0 0 2px #a78bfa!important;background:rgba(167,139,250,.08)!important}
     .drop-indicator{height:2px;background:#5e6ad2;border-radius:2px;margin:2px 6px;pointer-events:none;transition:opacity .1s}
     .card-drag-over-top{box-shadow:0 -2px 0 0 #5e6ad2!important}
     .card-drag-over-bottom{box-shadow:0 2px 0 0 #5e6ad2!important}
@@ -495,9 +512,48 @@
                    class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500 w-20 font-mono"/>
           </div>
 
+          <!-- Due date -->
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="adminMode || currentTicket?.due_date">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Due date</span>
+            <span x-show="!adminMode && currentTicket?.due_date"
+                  class="due-badge"
+                  :class="dueBadgeClass(currentTicket?.due_date)"
+                  x-text="currentTicket?.due_date"></span>
+            <input x-show="adminMode" type="date"
+                   :value="currentTicket?.due_date||''"
+                   @change="inlineUpdate('due_date', $event.target.value || null)"
+                   class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-n500"/>
+          </div>
+
           <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors" x-show="currentTicket?.role">
             <span class="text-n500 text-xs w-32 flex-shrink-0">Role</span>
             <span class="text-n200 text-sm capitalize" x-text="currentTicket?.role"></span>
+          </div>
+
+          <!-- Template toggle -->
+          <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors">
+            <span class="text-n500 text-xs w-32 flex-shrink-0">Template</span>
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <button @click="inlineUpdate('is_template', currentTicket?.is_template ? false : true)"
+                      :class="currentTicket?.is_template ? 'bg-y400' : 'bg-n700'"
+                      class="relative w-7 h-4 rounded-full transition-colors">
+                <span :class="currentTicket?.is_template ? 'translate-x-3.5' : 'translate-x-0.5'"
+                      class="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform"></span>
+              </button>
+              <span class="text-[11px] text-n500"
+                    x-text="currentTicket?.is_template ? 'This ticket is a template' : 'Mark as template'"></span>
+            </label>
+          </div>
+
+          <!-- Spawn from template -->
+          <div x-show="currentTicket?.is_template" class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors gap-2">
+            <span class="text-n500 text-xs w-32 flex-shrink-0 flex-shrink-0">Spawn copy</span>
+            <input x-model="spawnTitleInput" type="text" placeholder="Title (optional)"
+                   class="flex-1 bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-acc"/>
+            <button @click="spawnFromTemplate()"
+                    class="px-2 py-1 bg-y900 hover:bg-y700 border border-y400/30 text-y400 text-xs font-semibold rounded transition-colors flex-shrink-0">
+              Spawn
+            </button>
           </div>
 
           <div class="flex items-center px-4 py-2.5 hover:bg-n800 transition-colors">
@@ -540,10 +596,48 @@
 
         </div>
 
-        <!-- Description -->
-        <div x-show="currentTicket?.description" class="space-y-1.5">
-          <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Description</p>
-          <div class="prose-dark" x-html="marked.parse(currentTicket?.description || '')"></div>
+        <!-- Description (preview / edit toggle) -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] font-medium text-n500 uppercase tracking-wider">Description</p>
+            <!-- Edit / Preview pill toggle -->
+            <div class="flex items-center bg-n800 border border-n700 rounded-md p-0.5 gap-0.5">
+              <button @click="descEditMode = false"
+                      :class="!descEditMode ? 'bg-n700 text-n200' : 'text-n600 hover:text-n400'"
+                      class="text-[10px] px-2 py-0.5 rounded transition-colors">Preview</button>
+              <button @click="startDescEdit()"
+                      :class="descEditMode ? 'bg-n700 text-n200' : 'text-n600 hover:text-n400'"
+                      class="text-[10px] px-2 py-0.5 rounded transition-colors">Edit</button>
+            </div>
+          </div>
+
+          <!-- Preview mode -->
+          <div x-show="!descEditMode">
+            <div x-show="currentTicket?.description"
+                 class="prose-dark" x-html="marked.parse(currentTicket?.description || '')"></div>
+            <p x-show="!currentTicket?.description"
+               class="text-[11px] text-n700 italic cursor-pointer hover:text-n500 transition-colors"
+               @click="startDescEdit()">No description — click to add one.</p>
+          </div>
+
+          <!-- Edit mode -->
+          <div x-show="descEditMode" class="space-y-2">
+            <textarea x-ref="descTextarea"
+                      x-model="descDraft"
+                      rows="8"
+                      placeholder="Write a description… markdown supported"
+                      class="w-full bg-n800 border border-n700 rounded-lg px-3 py-2 text-xs text-n200 placeholder-n500 outline-none focus:border-acc transition-colors resize-y font-mono leading-relaxed"></textarea>
+            <div class="flex gap-2">
+              <button @click="saveDescEdit()"
+                      class="px-3 py-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold rounded-lg transition-colors">
+                Save
+              </button>
+              <button @click="descEditMode = false"
+                      class="px-3 py-1.5 bg-n700 hover:bg-n600 text-n300 text-xs font-semibold rounded-lg transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Acceptance criteria -->
@@ -627,7 +721,7 @@
                 <button @click="deleteComment(c.id)" class="text-n600 hover:text-r400 text-xs transition-colors">×</button>
               </div>
             </div>
-            <div class="prose-dark text-[12px]" x-html="marked.parse(c.body || '')"></div>
+            <div class="prose-dark text-[12px]" x-html="renderComment(c.body)"></div>
           </div>
         </template>
         <template x-if="!commentsLoading && comments.length === 0">
@@ -638,8 +732,31 @@
       <div class="space-y-2">
         <input x-model="commentAuthor" placeholder="Your name (optional)"
                class="w-full bg-n800 border border-n700 rounded-lg px-3 py-2 text-xs text-n200 placeholder-n500 outline-none focus:border-acc transition-colors" />
-        <textarea x-model="commentBody" placeholder="Write a comment... (markdown supported)" rows="3"
-                  class="w-full bg-n800 border border-n700 rounded-lg px-3 py-2 text-xs text-n200 placeholder-n500 outline-none focus:border-acc transition-colors resize-none"></textarea>
+        <!-- Textarea wrapper for mention dropdown positioning -->
+        <div class="relative">
+          <textarea x-ref="commentTextarea"
+                    x-model="commentBody"
+                    placeholder="Write a comment… type @ to mention someone"
+                    rows="3"
+                    @input="onCommentInput($event)"
+                    @keydown="onCommentKeydown($event)"
+                    class="w-full bg-n800 border border-n700 rounded-lg px-3 py-2 text-xs text-n200 placeholder-n500 outline-none focus:border-acc transition-colors resize-none"></textarea>
+
+          <!-- @mention dropdown -->
+          <div x-show="mentionDropdown" x-cloak
+               @click.outside="mentionDropdown = false"
+               class="absolute left-0 right-0 bottom-full mb-1 bg-n800 border border-n700 rounded-lg shadow-xl overflow-hidden z-50">
+            <template x-for="(u, idx) in mentionFiltered" :key="u">
+              <button type="button"
+                      @mousedown.prevent="selectMention(u)"
+                      :class="idx === mentionIndex ? 'bg-n700 text-n100' : 'text-n300 hover:bg-n750'"
+                      class="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors">
+                <span x-html="avatar(u, 16)"></span>
+                <span class="font-medium">@<span x-text="u"></span></span>
+              </button>
+            </template>
+          </div>
+        </div>
         <button @click="postComment()"
                 class="px-3 py-1.5 bg-acc hover:bg-accH text-white text-xs font-semibold rounded-lg transition-colors">
           Post comment
@@ -710,6 +827,33 @@
           </div>
         </template>
         <div x-show="!relations.length && !relationFormOpen" class="text-[11px] text-n700 px-2">No linked issues</div>
+      </div>
+    </div>
+
+    <!-- ── Activity Log ── -->
+    <div class="px-5 pb-5 border-t border-n700">
+      <p class="text-[11px] font-medium text-n500 uppercase tracking-wider mt-4 mb-3">
+        Activity
+        <span x-show="activityLog.length" class="normal-case ml-1 text-n700" x-text="`(${activityLog.length})`"></span>
+      </p>
+      <div x-show="activityLoading" class="text-n500 text-xs px-2">Loading…</div>
+      <div x-show="!activityLoading && !activityLog.length" class="text-[11px] text-n700 px-2">No activity yet.</div>
+      <div class="relative">
+        <div x-show="activityLog.length" class="absolute left-[10px] top-2 bottom-2 w-px bg-n700"></div>
+        <template x-for="entry in activityLog" :key="entry.id">
+          <div class="flex gap-3 py-1.5 relative">
+            <div class="w-[22px] h-[22px] rounded-full bg-n800 border border-n700 flex items-center justify-center flex-shrink-0 z-10 text-n500">
+              <span x-html="activityIcon(entry.action)"></span>
+            </div>
+            <div class="flex-1 min-w-0 pt-0.5">
+              <p class="text-[11px] text-n400 leading-snug" x-html="activityLabel(entry)"></p>
+              <p class="text-[10px] text-n600 mt-0.5">
+                <span class="text-n500 font-medium" x-text="entry.actor"></span>
+                · <span x-text="relativeDate(entry.created_at)"></span>
+              </p>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -1023,6 +1167,64 @@
 </div>
 
 <!-- ══════════════════════════════════════════════
+     QUICK ASSIGN POPOVER
+══════════════════════════════════════════════ -->
+<div x-show="quickAssignKey" x-cloak
+     @click.outside="quickAssignKey = null"
+     @keydown.escape.window="quickAssignKey = null"
+     class="fixed z-[200] bg-n800 border border-n700 rounded-lg shadow-2xl overflow-hidden py-1"
+     :style="`top:${quickAssignPos.top}px;left:${quickAssignPos.left}px;min-width:160px;max-height:240px;overflow-y:auto`">
+  <!-- Unassign -->
+  <button @click="quickAssign(quickAssignKey, '')"
+          class="w-full text-left px-3 py-1.5 text-xs text-n500 hover:bg-n700 hover:text-n300 flex items-center gap-2 transition-colors italic">
+    <span class="w-4 h-4 flex items-center justify-center text-n700">—</span>Unassign
+  </button>
+  <template x-for="u in mentionUsers" :key="u">
+    <button @click="quickAssign(quickAssignKey, u)"
+            class="w-full text-left px-3 py-1.5 text-xs text-n300 hover:bg-n700 hover:text-n100 flex items-center gap-2 transition-colors">
+      <span x-html="avatar(u, 16)"></span>
+      <span x-text="u"></span>
+    </button>
+  </template>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     DRAG-TO-LINK RELATION DIALOG
+══════════════════════════════════════════════ -->
+<div x-show="linkDialogOpen" x-cloak
+     class="fixed inset-0 z-[90] flex items-center justify-center"
+     @keydown.escape.window="linkDialogOpen=false">
+  <div class="absolute inset-0 bg-black/60" @click="linkDialogOpen=false"></div>
+  <div class="relative bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[360px] z-10 p-5">
+    <h2 class="text-sm font-semibold text-n100 mb-1">Create relation</h2>
+    <p class="text-[11px] text-n500 mb-4">
+      <span class="font-mono text-acc" x-text="linkFromKey"></span>
+      <span class="mx-1">→</span>
+      <span class="font-mono text-acc" x-text="linkToKey"></span>
+    </p>
+    <!-- Relation type selector -->
+    <div class="grid grid-cols-2 gap-2 mb-5">
+      <template x-for="rt in ['relates_to','blocks','blocked_by','duplicate_of']" :key="rt">
+        <button @click="linkRelType = rt"
+                :class="linkRelType===rt ? 'bg-acc/20 border-acc text-acc' : 'bg-n800 border-n700 text-n400 hover:border-n500'"
+                class="border rounded-lg px-3 py-2 text-[11px] font-medium transition-colors capitalize"
+                x-text="rt.replace(/_/g,' ')"></button>
+      </template>
+    </div>
+    <div class="flex gap-2">
+      <button @click="confirmLink()"
+              class="flex-1 py-2 bg-acc hover:bg-accH text-white text-xs font-semibold rounded-lg transition-colors">
+        Create link
+      </button>
+      <button @click="linkDialogOpen=false"
+              class="px-4 py-2 bg-n700 hover:bg-n600 text-n300 text-xs font-semibold rounded-lg transition-colors">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
      WIP LIMITS EDIT MODAL
 ══════════════════════════════════════════════ -->
 <div x-show="wipEditOpen" x-cloak
@@ -1105,7 +1307,7 @@
 <!-- ══════════════════════════════════════════════
      TOP BAR — two rows
 ══════════════════════════════════════════════ -->
-<header class="flex-shrink-0 bg-n900 border-b border-n800 z-30">
+<header class="flex-shrink-0 bg-n900 border-b border-n750 z-30">
 
   <!-- ── Row 1: Brand · Filter · Stats · New issue ── -->
   <div class="h-11 flex items-center px-4 gap-3 border-b border-n800/60">
@@ -1260,9 +1462,10 @@
   </div>
 
   <!-- ── Row 2: View toggles · Board controls · Theme ── -->
-  <div class="h-9 flex items-center px-4 gap-2 overflow-x-auto scrollbar-none">
+  <div class="h-9 flex items-center px-4 gap-2">
 
-    <!-- View toggle pills -->
+    <!-- Left: view toggles (scrollable, isolated so dropdowns on the right aren't clipped) -->
+    <div class="flex-1 min-w-0 overflow-x-auto scrollbar-none">
     <div class="flex items-center bg-n800 border border-n700 rounded-lg p-0.5 flex-shrink-0">
       <button @click="switchView('board')"
               :class="view==='board' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
@@ -1334,9 +1537,10 @@
         Roadmap
       </button>
     </div>
+    </div><!-- end left scrollable -->
 
-    <!-- Spacer -->
-    <div class="flex-1 min-w-0"></div>
+    <!-- Right: action buttons — no overflow clipping so dropdowns render correctly -->
+    <div class="flex items-center gap-2 flex-shrink-0">
 
     <!-- Saved filters -->
     <div class="relative flex-shrink-0">
@@ -1462,6 +1666,8 @@
       </svg>
     </button>
 
+    </div><!-- end right action buttons -->
+
   </div>
 
 </header>
@@ -1529,35 +1735,66 @@
       <!-- Columns row -->
       <div class="flex flex-1 overflow-y-hidden">
       <template x-for="col in columns" :key="col.status">
-        <div class="flex flex-col border-r border-n800 min-w-[220px] flex-1 h-full">
+        <div class="flex flex-col border-r border-n750 h-full"
+             :class="isColCollapsed(col.status) ? 'w-10 flex-shrink-0' : 'min-w-[220px] flex-1'">
 
           <!-- Column header (only show for first lane) -->
-          <div x-show="laneKey===swimlaneKeys[0]" class="flex items-center justify-between px-4 py-3 flex-shrink-0">
-            <div class="flex items-center gap-2">
-              <span x-html="col.icon"></span>
-              <span class="text-[11px] font-semibold text-n400 uppercase tracking-widest" x-text="col.label"></span>
-              <!-- Count + WIP indicator -->
-              <span class="text-[11px] tabular-nums font-mono" :class="wipColor(col.status)"
-                    x-text="(filteredBoard[col.status]||[]).length + (wipLimits[col.status] ? '/' + wipLimits[col.status] : '')"></span>
+          <div x-show="laneKey===swimlaneKeys[0]" class="flex-shrink-0">
+
+            <!-- Expanded header -->
+            <div x-show="!isColCollapsed(col.status)" class="flex items-center justify-between px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span x-html="col.icon"></span>
+                <span class="text-[11px] font-semibold text-n400 uppercase tracking-widest" x-text="col.label"></span>
+                <!-- Count + WIP indicator -->
+                <span class="text-[11px] tabular-nums font-mono" :class="wipColor(col.status)"
+                      x-text="(filteredBoard[col.status]||[]).length + (wipLimits[col.status] ? '/' + wipLimits[col.status] : '')"></span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <!-- Story points sum -->
+                <span x-show="colPoints(col.status) > 0"
+                      class="text-[10px] font-mono text-n600 bg-n800 border border-n700 rounded px-1.5 py-0.5"
+                      x-text="colPoints(col.status) + 'p'">
+                </span>
+                <!-- Collapse button -->
+                <button @click.stop="toggleColCollapse(col.status)"
+                        title="Collapse column"
+                        class="p-1 text-n600 hover:text-n300 hover:bg-n700 rounded transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 19l-7-7 7-7M18 5l-7 7 7 7"/>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <!-- Story points sum -->
-              <span x-show="colPoints(col.status) > 0"
-                    class="text-[10px] font-mono text-n600 bg-n800 border border-n700 rounded px-1.5 py-0.5"
-                    x-text="colPoints(col.status) + 'p'">
-              </span>
+
+            <!-- Collapsed strip (clickable to expand) -->
+            <div x-show="isColCollapsed(col.status)"
+                 @click="toggleColCollapse(col.status)"
+                 class="flex flex-col items-center pt-4 pb-3 gap-3 cursor-pointer hover:bg-n800/60 transition-colors">
+              <!-- Expand chevrons icon -->
+              <svg class="w-3 h-3 text-n600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 5l7 7-7 7M6 5l7 7-7 7"/>
+              </svg>
+              <!-- Status icon -->
+              <span x-html="col.icon" class="opacity-50 flex-shrink-0"></span>
+              <!-- Label vertical -->
+              <span class="text-[10px] font-semibold text-n600 uppercase tracking-widest col-strip-label"
+                    x-text="col.label"></span>
+              <!-- Ticket count -->
+              <span class="text-[10px] font-mono text-n700 mt-auto flex-shrink-0"
+                    x-text="(filteredBoard[col.status]||[]).length"></span>
             </div>
           </div>
 
           <!-- Tickets -->
-          <div class="col-scroll px-1.5 pb-2 transition-colors"
+          <div x-show="!isColCollapsed(col.status)" class="col-scroll px-1.5 pb-2 transition-colors"
                @dragover.prevent="colDragOver($event, col.status)"
                @dragleave.self="colDragLeave($event)"
                @drop.prevent="dropTicket($event, col.status)">
 
             <template x-for="ticket in (swimlaneBoard(laneKey)[col.status]||[])" :key="ticket.key">
               <div class="ticket-card group relative flex gap-0 rounded-md mb-0.5 cursor-pointer card-in overflow-hidden"
-                   :class="[bulkMode && bulkSelected.includes(ticket.key) ? 'ring-1 ring-acc bg-accL' : '', ageClass(ticket)]"
+                   :class="[bulkMode && bulkSelected.includes(ticket.key) ? 'ring-1 ring-acc bg-accL' : '', ageClass(ticket), isOverdue(ticket) ? 'overdue-card' : '']"
                    draggable="true"
                    :data-key="ticket.key"
                    @dragstart="dragStart($event, ticket)"
@@ -1599,6 +1836,8 @@
                       <span class="age-badge" :class="ageBadge(ticket)?.cls" x-text="ageBadge(ticket)?.label"></span>
                     </template>
                     <div class="flex-1"></div>
+                    <span x-show="ticket.due_date" class="due-badge" :class="dueBadgeClass(ticket.due_date)" x-text="ticket.due_date"></span>
+                    <span x-show="ticket.is_template" class="template-badge">tmpl</span>
                     <span x-show="ticket.assignee" x-html="avatar(ticket.assignee, 16)" :title="ticket.assignee"></span>
                     <span x-show="ticket.story_points"
                           class="text-[10px] font-mono text-n600 bg-n750 rounded px-1"
@@ -1614,7 +1853,11 @@
                             class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-acc hover:border-acc hover:text-white"
                             title="Move forward">→</button>
                   </template>
-                  <button @click.stop="openDetail(ticket)"
+                  <!-- Quick assign -->
+                <button @click.stop="openQuickAssign($event, ticket.key)"
+                        class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-n600 hover:text-n100"
+                        title="Quick assign"><span x-html="avatar(ticket.assignee||'',12)"></span></button>
+                <button @click.stop="openDetail(ticket)"
                           class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-n600 hover:text-n100"
                           title="Open detail">⋯</button>
                 </div>
@@ -2548,6 +2791,7 @@ const KNOWN_KEYS = new Set([
   'status',
   'pts','points',
   'project','proj',
+  'due',
 ]);
 
 function svgStatusIcon(status) {
@@ -2567,10 +2811,15 @@ function app() {
     listTickets: [], listTotal: 0, listPage: 1, listPageSize: 50,
     stats: {},
     currentTicket: null, detailOpen: false,
+    descEditMode: false, descDraft: '',
     formOpen: false, formLoading: false, formError: '', editKey: null,
     draggedTicket: null,
+    quickAssignKey: null, quickAssignPos: { top: 0, left: 0 },
     _dropTargetKey: null,
     _dropPosition: 'after',
+    _linkTargetKey: null,
+    linkDialogOpen: false, linkFromKey: '', linkToKey: '', linkRelType: 'relates_to',
+    spawnTitleInput: '',
     jqlRaw: '', parsedJQL: {}, unknownKeys: [],
     showJQLRef: false,
     toasts: [],
@@ -2592,6 +2841,10 @@ function app() {
     searchOpen: false, searchQuery: '', searchResults: [], searchLoading: false, searchTimer: null,
     // Comments
     comments: [], commentsLoading: false, commentBody: '', commentAuthor: '',
+    // @mention autocomplete
+    mentionDropdown: false, mentionQuery: '', mentionUsers: [], mentionFiltered: [], mentionIndex: 0, mentionAnchor: 0,
+    // Activity log
+    activityLog: [], activityLoading: false,
     // Sprints
     sprints: [], sprintStats: {}, sprintFormOpen: false,
     sprintForm: { name: '', goal: '', start_date: '', end_date: '' },
@@ -2602,6 +2855,8 @@ function app() {
     // WIP limits (per column, stored in localStorage)
     wipLimits: { backlog: 0, in_progress: 5, review: 3, done: 0 },
     wipEditOpen: false,
+    // Board column collapse (set of collapsed status strings, persisted)
+    collapsedCols: JSON.parse(localStorage.getItem('sbe_collapsed_cols') || '[]'),
     // Swimlanes
     swimlaneBy: 'none', // 'none' | 'assignee' | 'priority'
     // Saved filters
@@ -2878,10 +3133,22 @@ function app() {
         this.currentTicket = await res.json();
         await Promise.all([this.loadBoard(), this.loadStats()]);
         if (this.view === 'list') await this.loadList();
+        this.loadActivityLog();
         this.showToast('Updated', 'success');
       } else {
         this.showToast('Update failed', 'error');
       }
+    },
+
+    // ── Description edit/preview ───────────────────────────────────────
+    startDescEdit() {
+      this.descDraft = this.currentTicket?.description || '';
+      this.descEditMode = true;
+      this.$nextTick(() => this.$refs.descTextarea?.focus());
+    },
+    async saveDescEdit() {
+      await this.inlineUpdate('description', this.descDraft);
+      this.descEditMode = false;
     },
 
     async updateCustomField(key, value) {
@@ -3031,6 +3298,7 @@ function app() {
           else if (key === 'status')                  out.status   = val;
           else if (key === 'pts' || key === 'points') out.points   = val;
           else if (key === 'project' || key === 'proj') out.project = m[2] || m[3];
+          else if (key === 'due') out.due = val;
         } else {
           // quoted phrase (m[4]) or bare word (m[5])
           const word = m[4] || m[5] || '';
@@ -3067,6 +3335,16 @@ function app() {
       if (jql.project) {
         if (!ticket.project) return false;
         if (!ticket.project.toLowerCase().includes(jql.project.toLowerCase())) return false;
+      }
+      if (jql.due) {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
+        if (!ticket.due_date) return false;
+        const due = new Date(ticket.due_date);
+        if (jql.due === 'overdue')    { if (!(due < today)) return false; }
+        else if (jql.due === 'today') { if (!(due.toISOString().slice(0,10) === today.toISOString().slice(0,10))) return false; }
+        else if (jql.due === 'this-week') { if (!(due >= today && due <= nextWeek)) return false; }
+        else { if (ticket.due_date !== jql.due) return false; } // exact date
       }
       if (jql.points) {
         const pts = ticket.story_points ?? 0, v = jql.points;
@@ -3140,13 +3418,18 @@ function app() {
     async openDetail(ticket) {
       this.currentTicket = await (await fetch(`/api/tickets/${ticket.key}`)).json();
       this.comments = []; this.commentBody = '';
+      this.descEditMode = false; this.descDraft = '';
       this.relations = []; this.timeEntries = []; this.subtasks = [];
+      this.activityLog = [];
+      this.mentionDropdown = false;
+      if (!this.mentionUsers.length) this.loadMentionUsers();
       this.relationFormOpen = false; this.timeFormOpen = false; this.subtaskFormOpen = false;
       this.detailOpen = true;
       this.loadComments(ticket.key);
       this.loadRelations();
       this.loadTimeEntries();
       this.loadSubtasks();
+      this.loadActivityLog();
     },
 
     async moveTicket(key, status) {
@@ -3158,6 +3441,7 @@ function app() {
         this.currentTicket = await res.json();
         await Promise.all([this.loadBoard(), this.loadStats()]);
         if (this.view === 'list') await this.loadList();
+        this.loadActivityLog();
         this.showToast('Moved to ' + status.replace('_',' '), 'success');
       } else {
         this.showToast('Move failed', 'error');
@@ -3270,30 +3554,52 @@ function app() {
     cardDragOver(event) {
       if (!this.draggedTicket) return;
       const card = event.currentTarget;
-      const rect = card.getBoundingClientRect();
-      const isTopHalf = event.clientY < rect.top + rect.height / 2;
-      document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom')
-        .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom'));
-      card.classList.add(isTopHalf ? 'card-drag-over-top' : 'card-drag-over-bottom');
-      this._dropTargetKey = card.dataset.key;
-      this._dropPosition  = isTopHalf ? 'before' : 'after';
+      if (event.shiftKey) {
+        // Shift held → link mode: highlight target card
+        document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom,.link-target')
+          .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom','link-target'));
+        card.classList.add('link-target');
+        this._linkTargetKey = card.dataset.key;
+        this._dropTargetKey = null;
+      } else {
+        // Normal mode: reorder indicator
+        document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom,.link-target')
+          .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom','link-target'));
+        const rect = card.getBoundingClientRect();
+        const isTopHalf = event.clientY < rect.top + rect.height / 2;
+        card.classList.add(isTopHalf ? 'card-drag-over-top' : 'card-drag-over-bottom');
+        this._dropTargetKey = card.dataset.key;
+        this._dropPosition  = isTopHalf ? 'before' : 'after';
+        this._linkTargetKey = null;
+      }
     },
 
     cardDragLeave(event) {
-      event.currentTarget.classList.remove('card-drag-over-top','card-drag-over-bottom');
+      event.currentTarget.classList.remove('card-drag-over-top','card-drag-over-bottom','link-target');
     },
 
     async dropTicket(event, status) {
       // Clean up visual state
-      document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom,.drop-over')
-        .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom','drop-over'));
+      document.querySelectorAll('.card-drag-over-top,.card-drag-over-bottom,.drop-over,.link-target')
+        .forEach(el => el.classList.remove('card-drag-over-top','card-drag-over-bottom','drop-over','link-target'));
 
       if (!this.draggedTicket) return;
       const ticket   = this.draggedTicket;
       const targetKey = this._dropTargetKey;
       const position  = this._dropPosition;
+      const linkKey   = this._linkTargetKey;
       this.draggedTicket  = null;
       this._dropTargetKey = null;
+      this._linkTargetKey = null;
+
+      // Shift-drop on a different card → open link relation dialog
+      if (event.shiftKey && linkKey && linkKey !== ticket.key) {
+        this.linkFromKey   = ticket.key;
+        this.linkToKey     = linkKey;
+        this.linkRelType   = 'relates_to';
+        this.linkDialogOpen = true;
+        return;
+      }
 
       // Build new board state with the card inserted at the right position
       const nb = {};
@@ -3438,7 +3744,108 @@ function app() {
       if (res.ok || res.status === 201) {
         this.commentBody = '';
         await this.loadComments();
+        this.loadActivityLog();
       } else { this.showToast('Failed to post comment', 'error'); }
+    },
+
+    // ── Drag-to-link ───────────────────────────────────────────────────
+    async confirmLink() {
+      if (!this.linkFromKey || !this.linkToKey) return;
+      const res = await fetch(`/api/tickets/${this.linkFromKey}/relations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_key: this.linkToKey, relation_type: this.linkRelType }),
+      });
+      this.linkDialogOpen = false;
+      if (res.ok || res.status === 201) {
+        this.showToast(`${this.linkFromKey} ${this.linkRelType.replace(/_/g,' ')} ${this.linkToKey}`, 'success');
+        if (this.currentTicket?.key === this.linkFromKey || this.currentTicket?.key === this.linkToKey) {
+          this.loadRelations();
+        }
+      } else {
+        this.showToast('Link failed', 'error');
+      }
+    },
+
+    async spawnFromTemplate() {
+      if (!this.currentTicket?.is_template) return;
+      const body = this.spawnTitleInput.trim() ? { title: this.spawnTitleInput.trim() } : {};
+      const res = await fetch(`/api/tickets/${this.currentTicket.key}/spawn`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok || res.status === 201) {
+        const t = await res.json();
+        this.spawnTitleInput = '';
+        await this.loadBoard();
+        this.showToast(`Created ${t.key}: ${t.title}`, 'success');
+      } else {
+        this.showToast('Spawn failed', 'error');
+      }
+    },
+
+    // ── @mention autocomplete ──────────────────────────────────────────
+
+    async loadMentionUsers() {
+      try {
+        const r = await fetch('/api/users/usernames');
+        if (r.ok) this.mentionUsers = await r.json();
+      } catch {}
+    },
+
+    onCommentInput(event) {
+      const el = event.target;
+      const before = el.value.slice(0, el.selectionStart);
+      const match = before.match(/@(\w*)$/);
+      if (match) {
+        this.mentionAnchor = el.selectionStart - match[0].length;
+        this.mentionQuery  = match[1];
+        this.mentionFiltered = this.mentionUsers
+          .filter(u => u.toLowerCase().startsWith(this.mentionQuery.toLowerCase()))
+          .slice(0, 8);
+        this.mentionDropdown = this.mentionFiltered.length > 0;
+        this.mentionIndex = 0;
+      } else {
+        this.mentionDropdown = false;
+      }
+    },
+
+    onCommentKeydown(event) {
+      if (!this.mentionDropdown) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        this.mentionIndex = (this.mentionIndex + 1) % this.mentionFiltered.length;
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        this.mentionIndex = (this.mentionIndex - 1 + this.mentionFiltered.length) % this.mentionFiltered.length;
+      } else if (event.key === 'Enter' || event.key === 'Tab') {
+        if (this.mentionFiltered.length) {
+          event.preventDefault();
+          this.selectMention(this.mentionFiltered[this.mentionIndex]);
+        }
+      } else if (event.key === 'Escape') {
+        this.mentionDropdown = false;
+      }
+    },
+
+    selectMention(username) {
+      const el = this.$refs.commentTextarea;
+      const before = this.commentBody.slice(0, this.mentionAnchor);
+      const after   = this.commentBody.slice(el ? el.selectionStart : this.mentionAnchor + this.mentionQuery.length + 1);
+      this.commentBody = before + '@' + username + ' ' + after;
+      this.mentionDropdown = false;
+      this.$nextTick(() => {
+        if (el) {
+          el.focus();
+          const pos = this.mentionAnchor + username.length + 2; // @ + name + space
+          el.setSelectionRange(pos, pos);
+        }
+      });
+    },
+
+    renderComment(body) {
+      const html = marked.parse(body || '');
+      // Highlight @mentions that appear as plain text (not inside HTML tags)
+      return html.replace(/(?<![="])@(\w+)/g, '<span class="mention-chip">@$1</span>');
     },
 
     async deleteComment(id) {
@@ -3574,6 +3981,20 @@ function app() {
       this.wipEditOpen = false;
       this.showToast('WIP limits saved', 'success');
     },
+    isOverdue(ticket) {
+      if (!ticket.due_date || ticket.status === 'done') return false;
+      return new Date(ticket.due_date) < new Date(new Date().toDateString());
+    },
+    dueBadgeClass(dateStr) {
+      if (!dateStr) return '';
+      const today = new Date(new Date().toDateString());
+      const due   = new Date(dateStr);
+      const days  = Math.round((due - today) / 86400000);
+      if (days < 0)  return 'due-badge-overdue';
+      if (days <= 3) return 'due-badge-soon';
+      return 'due-badge-ok';
+    },
+
     wipColor(status) {
       const lim = this.wipLimits[status];
       if (!lim) return '';
@@ -3581,6 +4002,40 @@ function app() {
       if (cnt > lim) return 'wip-over';
       if (cnt >= lim * 0.8) return 'wip-warn';
       return 'wip-ok';
+    },
+
+    // ── Column collapse ────────────────────────────────────────────────
+    isColCollapsed(status) {
+      return this.collapsedCols.includes(status);
+    },
+    toggleColCollapse(status) {
+      const i = this.collapsedCols.indexOf(status);
+      if (i === -1) this.collapsedCols.push(status);
+      else this.collapsedCols.splice(i, 1);
+      localStorage.setItem('sbe_collapsed_cols', JSON.stringify(this.collapsedCols));
+    },
+
+    // ── Quick assign ───────────────────────────────────────────────────
+    openQuickAssign(event, ticketKey) {
+      if (this.quickAssignKey === ticketKey) { this.quickAssignKey = null; return; }
+      const rect = event.currentTarget.getBoundingClientRect();
+      this.quickAssignPos = { top: rect.bottom + 4, left: Math.max(4, rect.left - 80) };
+      this.quickAssignKey = ticketKey;
+      if (!this.mentionUsers.length) this.loadMentionUsers();
+    },
+    async quickAssign(ticketKey, username) {
+      this.quickAssignKey = null;
+      const res = await fetch(`/api/tickets/${ticketKey}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignee: username }),
+      });
+      if (res.ok) {
+        await this.loadBoard();
+        if (this.view === 'list') await this.loadList();
+        this.showToast(username ? `Assigned to ${username}` : 'Unassigned', 'success');
+      } else {
+        this.showToast('Assign failed', 'error');
+      }
     },
 
     // ── Swimlanes ─────────────────────────────────────────────────────
@@ -3744,6 +4199,7 @@ function app() {
         this.timeForm = { minutes: 30, note: '', author: '' };
         this.timeFormOpen = false;
         await this.loadTimeEntries();
+        this.loadActivityLog();
         this.showToast('Time logged', 'success');
       } else this.showToast('Failed to log time', 'error');
     },
@@ -3764,6 +4220,44 @@ function app() {
       } catch { this.subtasks = []; }
     },
 
+    // ── Activity Log ──────────────────────────────────────────────────
+
+    async loadActivityLog() {
+      if (!this.currentTicket) return;
+      this.activityLoading = true;
+      try {
+        const res = await fetch(`/api/tickets/${this.currentTicket.key}/activity`);
+        this.activityLog = res.ok ? await res.json() : [];
+      } catch { this.activityLog = []; }
+      finally { this.activityLoading = false; }
+    },
+
+    activityIcon(action) {
+      const icons = {
+        created:        '<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>',
+        status_changed: '<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>',
+        field_changed:  '<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>',
+        comment_added:  '<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>',
+        subtask_added:  '<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>',
+        time_logged:    '<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 7v5l3 2"/></svg>',
+      };
+      return icons[action] || icons.field_changed;
+    },
+
+    activityLabel(entry) {
+      const hl  = v => `<span class="text-n200 font-medium">${v}</span>`;
+      const tag = v => v ? `<span class="font-mono text-[10px] bg-n700 px-1 py-px rounded text-n300">${v}</span>` : '<span class="text-n600">—</span>';
+      switch (entry.action) {
+        case 'created':        return 'Ticket created';
+        case 'status_changed': return `Status → ${hl((entry.new_value || '').replace(/_/g,' '))}`;
+        case 'field_changed':  return `${hl(entry.field || 'field')} changed from ${tag(entry.old_value)} to ${tag(entry.new_value)}`;
+        case 'comment_added':  return 'Comment added';
+        case 'subtask_added':  return `Subtask ${hl(entry.new_value || '')} added`;
+        case 'time_logged':    return `Time logged: ${hl(entry.new_value || '')}`;
+        default: return (entry.action || '').replace(/_/g,' ');
+      }
+    },
+
     async createSubtask() {
       if (!this.subtaskForm.title.trim()) return;
       const res = await fetch(`/api/tickets/${this.currentTicket.key}/subtasks`, {
@@ -3774,6 +4268,7 @@ function app() {
         this.subtaskForm = { title: '', ticket_type: 'task', priority: 'medium' };
         this.subtaskFormOpen = false;
         await this.loadSubtasks();
+        this.loadActivityLog();
         this.showToast('Subtask created', 'success');
       } else this.showToast('Failed to create subtask', 'error');
     },

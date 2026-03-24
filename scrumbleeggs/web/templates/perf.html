@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scrumbleeggs · Performance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg:        '#0f0f11',
+            card:      '#1c1c1f',
+            border:    '#2a2a2e',
+            accent:    '#5e6ad2',
+            green:     '#4ade80',
+            red:       '#f87171',
+            yellow:    '#fbbf24',
+            orange:    '#fb923c',
+            'text-primary':   '#e2e2e5',
+            'text-secondary': '#b8b8c0',
+            'text-muted':     '#515158',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      background-color: #0f0f11;
+      color: #e2e2e5;
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+      50%       { opacity: 0.6; box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+    }
+
+    @keyframes pulse-ring {
+      0%   { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    .live-dot {
+      width: 10px;
+      height: 10px;
+      background: #4ade80;
+      border-radius: 50%;
+      animation: pulse-dot 1.5s ease-in-out infinite;
+      position: relative;
+    }
+
+    .live-dot::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse-ring 1.5s ease-out infinite;
+    }
+
+    .live-dot.stale {
+      background: #515158;
+      animation: none;
+    }
+
+    .live-dot.stale::before {
+      display: none;
+    }
+
+    .kpi-card {
+      background: #1c1c1f;
+      border: 1px solid #2a2a2e;
+      border-radius: 14px;
+      padding: 24px;
+      transition: border-color 0.3s ease;
+    }
+
+    .kpi-card:hover {
+      border-color: #3a3a3e;
+    }
+
+    .kpi-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 2.4rem;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .chart-card {
+      background: #1c1c1f;
+      border: 1px solid #2a2a2e;
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .chart-title {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #515158;
+      margin-bottom: 14px;
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      background: #16161a;
+      color: #515158;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 10px 16px;
+      text-align: left;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #2a2a2e;
+      white-space: nowrap;
+    }
+
+    thead th:hover {
+      color: #b8b8c0;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #1e1e22;
+      transition: background 0.15s;
+    }
+
+    tbody tr:nth-child(odd) {
+      background: rgba(28, 28, 31, 0.5);
+    }
+
+    tbody tr:hover {
+      background: #222226;
+    }
+
+    tbody td {
+      padding: 11px 16px;
+      font-size: 0.875rem;
+      color: #b8b8c0;
+    }
+
+    .slowest-row {
+      border-left: 3px solid #f87171 !important;
+    }
+
+    .slowest-row td:first-child {
+      padding-left: 13px;
+    }
+
+    .ms-green  { color: #4ade80; }
+    .ms-yellow { color: #fbbf24; }
+    .ms-red    { color: #f87171; }
+    .ms-neutral{ color: #b8b8c0; }
+
+    .sort-indicator {
+      display: inline-block;
+      margin-left: 4px;
+      opacity: 0.4;
+      font-size: 0.75rem;
+    }
+
+    .sort-indicator.active {
+      opacity: 1;
+      color: #5e6ad2;
+    }
+
+    .db-bar-track {
+      height: 8px;
+      background: #2a2a2e;
+      border-radius: 4px;
+      overflow: hidden;
+      width: 160px;
+    }
+
+    .db-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #5e6ad2, #818cf8);
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #16161a;
+      border: 1px solid #2a2a2e;
+      border-radius: 8px;
+      padding: 8px 14px;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #e2e2e5 0%, #b8b8c0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f0f11; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3a3e; }
+  </style>
+</head>
+<body class="min-h-screen" x-data="perfApp()" x-init="init()">
+
+  <!-- Header -->
+  <header style="background:#1c1c1f;border-bottom:1px solid #2a2a2e;" class="sticky top-0 z-50">
+    <div class="max-w-screen-2xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="/" style="color:#515158;font-size:0.8rem;font-weight:500;letter-spacing:0.04em;text-decoration:none;transition:color 0.2s;"
+           onmouseover="this.style.color='#b8b8c0'" onmouseout="this.style.color='#515158'">
+          ← Home
+        </a>
+        <span style="color:#2a2a2e;">|</span>
+        <h1 style="font-size:0.95rem;font-weight:600;letter-spacing:0.02em;">
+          <span style="color:#5e6ad2;">Scrumbleeggs</span>
+          <span style="color:#515158;margin:0 6px;">·</span>
+          <span class="gradient-text">Performance</span>
+        </h1>
+      </div>
+
+      <div class="flex items-center gap-5">
+        <span style="font-size:0.75rem;color:#515158;">
+          Updated:
+          <span x-text="lastUpdated || '—'" style="color:#b8b8c0;font-family:monospace;"></span>
+        </span>
+        <div class="flex items-center gap-2">
+          <div class="live-dot" :class="{ stale: !isLive }"></div>
+          <span style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;"
+                :style="isLive ? 'color:#4ade80' : 'color:#515158'"
+                x-text="isLive ? 'Live' : 'Stale'"></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-screen-2xl mx-auto px-6 py-8" style="display:flex;flex-direction:column;gap:24px;">
+
+    <!-- KPI Row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+
+      <!-- Req/s -->
+      <div class="kpi-card">
+        <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#515158;margin-bottom:8px;">
+          Requests / sec
+        </div>
+        <div class="kpi-value ms-neutral" x-text="summary.rps.toFixed(1)">0.0</div>
+        <div style="margin-top:8px;font-size:0.75rem;color:#515158;">
+          <span x-text="summary.total_requests.toLocaleString()">0</span> total
+        </div>
+      </div>
+
+      <!-- p95 Latency -->
+      <div class="kpi-card">
+        <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#515158;margin-bottom:8px;">
+          p95 Latency
+        </div>
+        <div class="kpi-value" :class="p95Class" x-text="formatMs(summary.p95_ms)">—</div>
+        <div style="margin-top:8px;font-size:0.75rem;color:#515158;">
+          95th percentile response time
+        </div>
+      </div>
+
+      <!-- Error Rate -->
+      <div class="kpi-card">
+        <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#515158;margin-bottom:8px;">
+          Error Rate
+        </div>
+        <div class="kpi-value" :class="errClass" x-text="(summary.error_rate_pct || 0).toFixed(2) + '%'">0.00%</div>
+        <div style="margin-top:8px;font-size:0.75rem;color:#515158;">
+          4xx + 5xx responses
+        </div>
+      </div>
+
+      <!-- Total Requests -->
+      <div class="kpi-card">
+        <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#515158;margin-bottom:8px;">
+          Total Requests
+        </div>
+        <div class="kpi-value ms-neutral" x-text="summary.total_requests.toLocaleString()">0</div>
+        <div style="margin-top:8px;font-size:0.75rem;color:#515158;">
+          across 60s window
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Charts Row: Req/s | Latency | Error Rate -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+
+      <!-- Req/s Chart -->
+      <div class="chart-card">
+        <div class="chart-title">Requests / Second</div>
+        <div class="chart-container" style="height:200px;">
+          <canvas id="chart-rps" style="width:100%;height:100%;"></canvas>
+        </div>
+      </div>
+
+      <!-- Latency Chart -->
+      <div class="chart-card">
+        <div class="chart-title">Latency (ms) — p50 / p95 / p99</div>
+        <div class="chart-container" style="height:200px;">
+          <canvas id="chart-latency" style="width:100%;height:100%;"></canvas>
+        </div>
+      </div>
+
+      <!-- Error Rate Chart -->
+      <div class="chart-card">
+        <div class="chart-title">Error Rate %</div>
+        <div class="chart-container" style="height:200px;">
+          <canvas id="chart-errors" style="width:100%;height:100%;"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Status Codes Stacked Area -->
+    <div class="chart-card">
+      <div class="chart-title">Status Codes — 2xx / 4xx / 5xx (stacked area)</div>
+      <div class="chart-container" style="height:200px;">
+        <canvas id="chart-status" style="width:100%;height:100%;"></canvas>
+      </div>
+    </div>
+
+    <!-- Endpoint Table -->
+    <div class="chart-card" style="padding:0;overflow:hidden;">
+      <div style="padding:20px 20px 14px;border-bottom:1px solid #2a2a2e;display:flex;align-items:center;justify-content:between;gap:12px;">
+        <div class="chart-title" style="margin-bottom:0;">Endpoint Breakdown</div>
+        <span style="margin-left:auto;font-size:0.72rem;color:#515158;">
+          Click column headers to sort
+        </span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40%;padding-left:20px;">Endpoint Path</th>
+              <th @click="sort('count')" style="text-align:right;">
+                Requests
+                <span class="sort-indicator" :class="{ active: sortKey==='count' }"
+                      x-text="sortKey==='count' ? (sortDir===1?'↑':'↓') : '↕'"></span>
+              </th>
+              <th @click="sort('avg_ms')" style="text-align:right;">
+                Avg Latency
+                <span class="sort-indicator" :class="{ active: sortKey==='avg_ms' }"
+                      x-text="sortKey==='avg_ms' ? (sortDir===1?'↑':'↓') : '↕'"></span>
+              </th>
+              <th @click="sort('p95_ms')" style="text-align:right;">
+                p95
+                <span class="sort-indicator" :class="{ active: sortKey==='p95_ms' }"
+                      x-text="sortKey==='p95_ms' ? (sortDir===1?'↑':'↓') : '↕'"></span>
+              </th>
+              <th @click="sort('p99_ms')" style="text-align:right;padding-right:20px;">
+                p99
+                <span class="sort-indicator" :class="{ active: sortKey==='p99_ms' }"
+                      x-text="sortKey==='p99_ms' ? (sortDir===1?'↑':'↓') : '↕'"></span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="sortedEndpoints.length === 0">
+              <tr>
+                <td colspan="5" style="text-align:center;color:#515158;padding:32px;">
+                  No endpoint data yet — waiting for traffic...
+                </td>
+              </tr>
+            </template>
+            <template x-for="(ep, idx) in sortedEndpoints" :key="ep.path">
+              <tr :class="{ 'slowest-row': idx === slowestIdx }">
+                <td style="padding-left:20px;">
+                  <span style="font-family:monospace;font-size:0.82rem;color:#e2e2e5;" x-text="ep.path"></span>
+                  <template x-if="idx === slowestIdx">
+                    <span style="margin-left:8px;font-size:0.65rem;background:#2a1a1a;color:#f87171;border:1px solid #4a2020;border-radius:4px;padding:1px 6px;font-weight:600;letter-spacing:0.06em;">SLOWEST</span>
+                  </template>
+                </td>
+                <td style="text-align:right;font-family:monospace;color:#b8b8c0;" x-text="ep.count.toLocaleString()"></td>
+                <td style="text-align:right;font-family:monospace;" :class="msClass(ep.avg_ms)" x-text="formatMs(ep.avg_ms)"></td>
+                <td style="text-align:right;font-family:monospace;" :class="msClass(ep.p95_ms)" x-text="formatMs(ep.p95_ms)"></td>
+                <td style="text-align:right;font-family:monospace;padding-right:20px;" :class="msClass(ep.p99_ms)" x-text="formatMs(ep.p99_ms)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DB Health -->
+    <div class="chart-card">
+      <div class="chart-title">Database Health</div>
+      <div style="display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap;">
+
+        <!-- Table stats -->
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:0.75rem;color:#515158;margin-bottom:10px;font-weight:500;">Row Counts</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <template x-for="[table, count] in Object.entries(db.table_stats || {})" :key="table">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                <span style="font-family:monospace;font-size:0.8rem;color:#b8b8c0;" x-text="table"></span>
+                <span style="font-family:monospace;font-size:0.8rem;color:#e2e2e5;font-weight:600;" x-text="count.toLocaleString()"></span>
+              </div>
+            </template>
+            <template x-if="Object.keys(db.table_stats || {}).length === 0">
+              <span style="color:#515158;font-size:0.8rem;">No data</span>
+            </template>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div style="width:1px;background:#2a2a2e;align-self:stretch;"></div>
+
+        <!-- DB Size -->
+        <div style="min-width:200px;">
+          <div style="font-size:0.75rem;color:#515158;margin-bottom:10px;font-weight:500;">Database File Size</div>
+          <div style="font-family:monospace;font-size:1.6rem;font-weight:700;color:#e2e2e5;margin-bottom:10px;"
+               x-text="formatBytes(db.db_size_bytes || 0)"></div>
+          <div class="db-bar-track">
+            <div class="db-bar-fill" :style="'width:' + dbSizePct + '%'"></div>
+          </div>
+          <div style="font-size:0.7rem;color:#515158;margin-top:6px;" x-text="(db.db_size_bytes || 0).toLocaleString() + ' bytes'"></div>
+        </div>
+
+        <!-- Divider -->
+        <div style="width:1px;background:#2a2a2e;align-self:stretch;"></div>
+
+        <!-- Quick stats pills -->
+        <div style="min-width:180px;">
+          <div style="font-size:0.75rem;color:#515158;margin-bottom:10px;font-weight:500;">Window Summary</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div class="stat-pill">
+              <span style="font-size:0.72rem;color:#515158;">RPS</span>
+              <span style="font-family:monospace;font-size:0.85rem;color:#e2e2e5;font-weight:600;" x-text="summary.rps.toFixed(2)"></span>
+            </div>
+            <div class="stat-pill">
+              <span style="font-size:0.72rem;color:#515158;">p95</span>
+              <span style="font-family:monospace;font-size:0.85rem;font-weight:600;"
+                    :class="p95Class" x-text="formatMs(summary.p95_ms)"></span>
+            </div>
+            <div class="stat-pill">
+              <span style="font-size:0.72rem;color:#515158;">err%</span>
+              <span style="font-family:monospace;font-size:0.85rem;font-weight:600;"
+                    :class="errClass" x-text="(summary.error_rate_pct || 0).toFixed(2) + '%'"></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;padding:8px 0 4px;font-size:0.7rem;color:#515158;">
+      Scrumbleeggs Performance Monitor — polling every 1s — 60s rolling window
+    </div>
+
+  </main>
+
+  <script>
+    function perfApp() {
+      return {
+        summary: { rps: 0, error_rate_pct: 0, p95_ms: 0, total_requests: 0 },
+        endpoints: {},
+        db: { table_stats: {}, db_size_bytes: 0 },
+        lastUpdated: null,
+        lastFetchTime: null,
+        sortKey: 'count',
+        sortDir: -1,
+        // NOTE: charts stored on window._charts, NOT here — Alpine Proxy wrapping
+        // corrupts Chart.js internal state and prevents rendering.
+
+        // ── Lifecycle ──────────────────────────────────────────────────────────
+
+        async init() {
+          // Wait for Chart.js to be fully available
+          await this.waitForChartJS();
+          // Defer chart init one tick so canvas elements have rendered dimensions
+          await new Promise(r => setTimeout(r, 0));
+          this.initCharts();
+          // Warm up with real traffic so charts have immediate data - AWAIT it
+          await this.warmup();
+          // Small delay to let metrics collect the warmup requests
+          await new Promise(r => setTimeout(r, 100));
+          await this.fetch();
+          setInterval(() => this.fetch(), 1000);
+        },
+
+        async waitForChartJS() {
+          // Poll until Chart.js is available (handles CDN load timing)
+          console.log('[perf] Waiting for Chart.js...');
+          let attempts = 0;
+          while (typeof Chart === 'undefined' && attempts < 50) {
+            await new Promise(r => setTimeout(r, 50));
+            attempts++;
+          }
+          if (typeof Chart === 'undefined') {
+            console.error('[perf] Chart.js failed to load after', attempts, 'attempts');
+          } else {
+            console.log('[perf] Chart.js loaded after', attempts, 'attempts');
+          }
+        },
+
+        // ── Chart initialisation ───────────────────────────────────────────────
+
+        initCharts() {
+          console.log('[perf] initCharts called, Chart available:', typeof Chart !== 'undefined');
+          
+          // Ensure Chart.js is loaded
+          if (typeof Chart === 'undefined') {
+            console.error('[perf] Chart.js not loaded, retrying in 100ms...');
+            setTimeout(() => this.initCharts(), 100);
+            return;
+          }
+
+          // Ensure all canvas elements exist
+          const canvasIds = ['chart-rps', 'chart-latency', 'chart-errors', 'chart-status'];
+          for (const id of canvasIds) {
+            const el = document.getElementById(id);
+            if (!el) {
+              console.error(`[perf] Canvas #${id} not found, retrying in 100ms...`);
+              setTimeout(() => this.initCharts(), 100);
+              return;
+            }
+          }
+
+          // Just initialize the _charts object - actual charts created in recreateCharts
+          window._charts = {};
+          console.log('[perf] Charts system ready, waiting for data...');
+        },
+
+        // ── Fetch & update ─────────────────────────────────────────────────────
+
+        async warmup() {
+          // Hit a handful of endpoints so charts have visible data immediately
+          const endpoints = ['/api/stats', '/api/board', '/api/tickets', '/api/projects'];
+          await Promise.all(endpoints.map(ep => fetch(ep).catch(() => {})));
+        },
+
+        async fetch() {
+          try {
+            const res  = await fetch('/api/perf/timeseries');
+            if (!res.ok) {
+              console.error('[perf] fetch failed:', res.status);
+              return;
+            }
+            const data = await res.json();
+            console.log('[perf] fetch got data, buckets:', data.buckets?.length, 'summary:', data.summary);
+
+            this.summary     = data.summary     || this.summary;
+            this.endpoints   = data.endpoints   || {};
+            this.db          = data.db          || { table_stats: {}, db_size_bytes: 0 };
+            this.lastUpdated = new Date().toLocaleTimeString();
+            this.lastFetchTime = Date.now();
+
+            this.updateCharts(data.buckets || []);
+          } catch (e) {
+            console.error('[perf] fetch error:', e);
+          }
+        },
+
+        updateCharts(buckets) {
+          if (!buckets || buckets.length === 0) return;
+
+          const labels = buckets.map(b => {
+            const d = new Date(b.ts * 1000);
+            return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          });
+
+          const rpsData = buckets.map(b => b.req_count || 0);
+          const p50 = buckets.map(b => b.latency_p50 || 0);
+          const p95 = buckets.map(b => b.latency_p95 || 0);
+          const p99 = buckets.map(b => b.latency_p99 || 0);
+          const errPct = buckets.map(b => {
+            if (!b.req_count) return 0;
+            return ((b.error_count || 0) / b.req_count) * 100;
+          });
+          const s2xx = buckets.map(b => b.status_2xx || 0);
+          const s4xx = buckets.map(b => b.status_4xx || 0);
+          const s5xx = buckets.map(b => b.status_5xx || 0);
+
+          // Destroy and recreate charts with new data
+          this.recreateCharts(labels, rpsData, p50, p95, p99, errPct, s2xx, s4xx, s5xx);
+        },
+
+        recreateCharts(labels, rpsData, p50, p95, p99, errPct, s2xx, s4xx, s5xx) {
+          const gridColor = 'rgba(42,42,46,0.8)';
+          const tickColor = '#515158';
+          
+          // Destroy existing charts
+          if (window._charts) {
+            Object.values(window._charts).forEach(c => c && c.destroy());
+          }
+          window._charts = {};
+
+          // RPS Chart
+          window._charts.rps = new Chart(
+            document.getElementById('chart-rps').getContext('2d'),
+            {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Req/s',
+                  data: rpsData,
+                  borderColor: '#4ade80',
+                  backgroundColor: 'rgba(74,222,128,0.1)',
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  tension: 0.4,
+                  fill: true,
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { display: true, grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 6 } },
+                  y: { display: true, grid: { color: gridColor }, ticks: { color: tickColor }, beginAtZero: true }
+                }
+              }
+            }
+          );
+
+          // Latency Chart
+          window._charts.latency = new Chart(
+            document.getElementById('chart-latency').getContext('2d'),
+            {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [
+                  { label: 'p50', data: p50, borderColor: '#5e6ad2', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false },
+                  { label: 'p95', data: p95, borderColor: '#fbbf24', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false },
+                  { label: 'p99', data: p99, borderColor: '#f87171', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: { legend: { display: true, position: 'top', labels: { color: '#b8b8c0', boxWidth: 10 } } },
+                scales: {
+                  x: { display: true, grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 6 } },
+                  y: { display: true, grid: { color: gridColor }, ticks: { color: tickColor }, beginAtZero: true }
+                }
+              }
+            }
+          );
+
+          // Errors Chart
+          window._charts.errors = new Chart(
+            document.getElementById('chart-errors').getContext('2d'),
+            {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Error %',
+                  data: errPct,
+                  borderColor: '#f87171',
+                  backgroundColor: 'rgba(248,113,113,0.1)',
+                  borderWidth: 2,
+                  pointRadius: 0,
+                  tension: 0.4,
+                  fill: true,
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { display: true, grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 6 } },
+                  y: { display: true, grid: { color: gridColor }, ticks: { color: tickColor }, beginAtZero: true }
+                }
+              }
+            }
+          );
+
+          // Status Codes Chart
+          window._charts.status = new Chart(
+            document.getElementById('chart-status').getContext('2d'),
+            {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [
+                  { label: '5xx', data: s5xx, borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.3)', borderWidth: 1, pointRadius: 0, tension: 0.3, fill: true },
+                  { label: '4xx', data: s4xx, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.3)', borderWidth: 1, pointRadius: 0, tension: 0.3, fill: true },
+                  { label: '2xx', data: s2xx, borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.2)', borderWidth: 1, pointRadius: 0, tension: 0.3, fill: true }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: { legend: { display: true, position: 'top', labels: { color: '#b8b8c0', boxWidth: 10 } } },
+                scales: {
+                  x: { display: true, grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 8 } },
+                  y: { display: true, grid: { color: gridColor }, ticks: { color: tickColor }, beginAtZero: true, stacked: true }
+                }
+              }
+            }
+          );
+        },
+
+        // ── Computed ───────────────────────────────────────────────────────────
+
+        get isLive() {
+          if (!this.lastFetchTime) return false;
+          return (Date.now() - this.lastFetchTime) < 3000;
+        },
+
+        get p95Class() {
+          const ms = this.summary.p95_ms || 0;
+          if (ms < 100)  return 'ms-green';
+          if (ms < 500)  return 'ms-yellow';
+          return 'ms-red';
+        },
+
+        get errClass() {
+          const pct = this.summary.error_rate_pct || 0;
+          if (pct < 1)  return 'ms-green';
+          if (pct < 5)  return 'ms-yellow';
+          return 'ms-red';
+        },
+
+        get sortedEndpoints() {
+          return Object.entries(this.endpoints)
+            .map(([path, d]) => ({ path, ...d }))
+            .sort((a, b) => this.sortDir * ((b[this.sortKey] || 0) - (a[this.sortKey] || 0)));
+        },
+
+        get slowestIdx() {
+          const eps = this.sortedEndpoints;
+          if (eps.length === 0) return -1;
+          let maxIdx = 0;
+          let maxVal = eps[0].p95_ms || 0;
+          for (let i = 1; i < eps.length; i++) {
+            if ((eps[i].p95_ms || 0) > maxVal) {
+              maxVal = eps[i].p95_ms;
+              maxIdx = i;
+            }
+          }
+          return maxIdx;
+        },
+
+        get dbSizePct() {
+          // Map 0–100 MB to 0–100%
+          const bytes = this.db.db_size_bytes || 0;
+          return Math.min(100, (bytes / (100 * 1024 * 1024)) * 100);
+        },
+
+        // ── Helpers ────────────────────────────────────────────────────────────
+
+        msClass(ms) {
+          if (ms == null) return 'ms-neutral';
+          if (ms < 50)   return 'ms-green';
+          if (ms < 200)  return 'ms-yellow';
+          return 'ms-red';
+        },
+
+        formatMs(ms) {
+          if (ms == null || ms === 0) return '—';
+          if (ms < 1) return '<1ms';
+          return Math.round(ms) + 'ms';
+        },
+
+        formatBytes(b) {
+          if (b == null || b === 0) return '0 B';
+          if (b < 1024)             return b + ' B';
+          if (b < 1024 * 1024)      return (b / 1024).toFixed(1) + ' KB';
+          return (b / (1024 * 1024)).toFixed(2) + ' MB';
+        },
+
+        sort(key) {
+          if (this.sortKey === key) {
+            this.sortDir *= -1;
+          } else {
+            this.sortKey = key;
+            this.sortDir = -1;
+          }
+        },
+      };
+    }
+
+    // Debug: Log when Alpine starts
+    document.addEventListener('alpine:init', () => {
+      console.log('[perf] Alpine:init event fired');
+    });
+    
+    document.addEventListener('alpine:initialized', () => {
+      console.log('[perf] Alpine fully initialized');
+    });
+  </script>
+
+</body>
+</html>

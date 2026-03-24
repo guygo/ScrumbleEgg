@@ -22,7 +22,7 @@ from ..auth import AuthError, AuthService, RateLimitError, User
 from ..config import get_config
 from ..db import (
     CustomFieldDef, Database, FieldType, Priority, Project, ProjectStatus, Role,
-    Sprint, TicketComment, TicketRelation, TicketStatus, TicketType, TimeEntry,
+    Sprint, TicketActivityLog, TicketComment, TicketRelation, TicketStatus, TicketType, TimeEntry,
 )
 from ..tickets import TicketCreate, TicketService, TicketUpdate
 from ..metrics import MetricsCollector
@@ -182,6 +182,42 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+def _get_actor(request: Request) -> str:
+    """Return the username of the authenticated user, or 'system' as fallback."""
+    user: Optional[User] = getattr(request.state, "user", None)
+    return user.username if user else "system"
+
+
+def _log_activity(
+    ticket_key: str,
+    actor: str,
+    action: str,
+    field: Optional[str] = None,
+    old_value: Optional[str] = None,
+    new_value: Optional[str] = None,
+) -> None:
+    """Write a single activity log entry. Exceptions are suppressed so logging never breaks ops."""
+    try:
+        with _db.session() as session:
+            session.add(TicketActivityLog(
+                ticket_key=ticket_key.upper(),
+                actor=actor,
+                action=action,
+                field=field,
+                old_value=str(old_value) if old_value is not None else None,
+                new_value=str(new_value) if new_value is not None else None,
+            ))
+    except Exception:
+        logger.exception("Failed to write activity log for %s action=%s", ticket_key, action)
+
+
+def _str_val(v) -> Optional[str]:
+    """Serialize a value to string, unwrapping enum .value to avoid 'EnumName.VALUE' repr."""
+    if v is None:
+        return None
+    return v.value if hasattr(v, "value") else str(v)
+
+
 # ---------------------------------------------------------------------------
 # Pydantic request models
 # ---------------------------------------------------------------------------
@@ -196,6 +232,7 @@ class TicketCreateRequest(BaseModel):
     sprint: str = ""
     project: str = ""
     story_points: Optional[int] = None
+    due_date: Optional[str] = None
     role: Optional[str] = None
     acceptance_criteria: str = ""
     dev_checklist: list = []
@@ -213,12 +250,14 @@ class TicketUpdateRequest(BaseModel):
     sprint: Optional[str] = None
     project: Optional[str] = None
     story_points: Optional[int] = None
+    due_date: Optional[str] = None
     acceptance_criteria: Optional[str] = None
     dev_checklist: Optional[list] = None
     qa_notes: Optional[str] = None
     test_cases: Optional[list] = None
     test_plan: Optional[str] = None
     custom_data: Optional[dict] = None
+    is_template: Optional[bool] = None
 
 
 class MoveRequest(BaseModel):
@@ -432,6 +471,16 @@ async def list_users(_admin: AdminUser):
     return [u.to_dict() for u in _auth.list_users()]
 
 
+@app.get("/api/users/usernames")
+async def list_usernames(_user: CurrentUser):
+    """Return active usernames for @mention autocomplete.
+
+    Returns:
+        List of username strings for all active users.
+    """
+    return [u.username for u in _auth.list_users() if u.is_active]
+
+
 @app.post("/api/users", status_code=201)
 async def create_user(request: Request, body: UserCreateRequest, _admin: AdminUser):
     """Create an inactive user and return a one-time invite URL. Requires admin role."""
@@ -576,7 +625,7 @@ async def api_list(
 
 
 @app.post("/api/tickets", status_code=201)
-async def api_create(body: TicketCreateRequest):
+async def api_create(request: Request, body: TicketCreateRequest):
     global _board_cache
     try:
         ticket = _svc.create(
@@ -589,6 +638,7 @@ async def api_create(body: TicketCreateRequest):
                 sprint=body.sprint,
                 project=body.project,
                 story_points=body.story_points,
+                due_date=body.due_date or None,
                 role=Role(body.role) if body.role else None,
                 acceptance_criteria=body.acceptance_criteria,
                 dev_checklist=body.dev_checklist,
@@ -599,6 +649,7 @@ async def api_create(body: TicketCreateRequest):
             )
         )
         _board_cache.clear()  # Invalidate board cache so new ticket appears immediately
+        _log_activity(ticket.key, _get_actor(request), "created")
         return ticket.to_dict()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -613,7 +664,13 @@ async def api_get(key: str):
 
 
 @app.patch("/api/tickets/{key}")
-async def api_update(key: str, body: TicketUpdateRequest):
+async def api_update(request: Request, key: str, body: TicketUpdateRequest):
+    # Capture old values before mutation for the activity log
+    old = _svc.get(key)
+    if not old:
+        raise HTTPException(status_code=404, detail=f"Ticket {key} not found")
+    old_dict = old.to_dict()
+
     try:
         ticket = _svc.update(
             key,
@@ -625,25 +682,52 @@ async def api_update(key: str, body: TicketUpdateRequest):
                 sprint=body.sprint,
                 project=body.project,
                 story_points=body.story_points,
+                due_date=body.due_date,
                 acceptance_criteria=body.acceptance_criteria,
                 dev_checklist=body.dev_checklist,
                 qa_notes=body.qa_notes,
                 test_cases=body.test_cases,
                 test_plan=body.test_plan,
                 custom_data=body.custom_data,
+                is_template=1 if body.is_template else (0 if body.is_template is False else None),
             ),
         )
-        return ticket.to_dict()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
+    actor = _get_actor(request)
+    new_dict = ticket.to_dict()
+    _TRACKED_FIELDS = (
+        "title", "description", "priority", "assignee",
+        "sprint", "project", "story_points", "acceptance_criteria", "qa_notes",
+    )
+    for f in _TRACKED_FIELDS:
+        if f not in body.model_fields_set:
+            continue
+        if old_dict.get(f) != new_dict.get(f):
+            _log_activity(
+                key, actor, "field_changed",
+                field=f,
+                old_value=_str_val(old_dict.get(f)),
+                new_value=_str_val(new_dict.get(f)),
+            )
+    return new_dict
+
 
 @app.post("/api/tickets/{key}/move")
-async def api_move(key: str, body: MoveRequest):
+async def api_move(request: Request, key: str, body: MoveRequest):
     global _board_cache
+    old = _svc.get(key)
+    old_status = old.status if old else None
     try:
         ticket = _svc.transition(key, TicketStatus(body.status))
         _board_cache.clear()
+        _log_activity(
+            key, _get_actor(request), "status_changed",
+            field="status",
+            old_value=_str_val(old_status),
+            new_value=body.status,
+        )
         return ticket.to_dict()
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -693,7 +777,7 @@ async def api_comments_list(key: str):
 
 
 @app.post("/api/tickets/{key}/comments", status_code=201)
-async def api_comments_create(key: str, body: CommentCreateRequest):
+async def api_comments_create(request: Request, key: str, body: CommentCreateRequest):
     if not body.body.strip():
         raise HTTPException(status_code=422, detail="Comment body cannot be empty")
     with _db.session() as session:
@@ -709,7 +793,10 @@ async def api_comments_create(key: str, body: CommentCreateRequest):
         session.add(comment)
         session.flush()
         session.refresh(comment)
-        return comment.to_dict()
+        result = comment.to_dict()
+
+    _log_activity(key, _get_actor(request), "comment_added", new_value=body.body.strip()[:200])
+    return result
 
 
 @app.delete("/api/tickets/{key}/comments/{comment_id}", status_code=204)
@@ -816,7 +903,7 @@ async def api_time_list(key: str):
 
 
 @app.post("/api/tickets/{key}/time", status_code=201)
-async def api_time_create(key: str, body: TimeEntryCreateRequest):
+async def api_time_create(request: Request, key: str, body: TimeEntryCreateRequest):
     if body.minutes <= 0:
         raise HTTPException(status_code=422, detail="minutes must be a positive integer")
     with _db.session() as session:
@@ -833,7 +920,97 @@ async def api_time_create(key: str, body: TimeEntryCreateRequest):
         session.add(entry)
         session.flush()
         session.refresh(entry)
-        return entry.to_dict()
+        result = entry.to_dict()
+
+    mins = body.minutes
+    time_str = f"{mins // 60}h {mins % 60}m" if mins >= 60 else f"{mins}m"
+    note_str = f" — {body.note}" if body.note else ""
+    _log_activity(key, _get_actor(request), "time_logged", new_value=f"{time_str}{note_str}")
+    return result
+
+
+@app.get("/api/tickets/{key}/activity")
+async def api_activity_list(key: str, limit: int = 100):
+    """Return the activity log for a ticket, newest-first.
+
+    Args:
+        key: Ticket key (e.g. SBE-42).
+        limit: Maximum number of entries to return (default 100).
+
+    Returns:
+        List of activity log entries ordered by created_at descending.
+
+    Raises:
+        HTTPException: 404 if the ticket does not exist.
+    """
+    with _db.session() as session:
+        from ..db import Ticket as _Ticket
+        t = session.execute(
+            select(_Ticket).where(_Ticket.key == key.upper())
+        ).scalar_one_or_none()
+        if not t:
+            raise HTTPException(status_code=404, detail=f"Ticket {key} not found")
+        entries = list(
+            session.execute(
+                select(TicketActivityLog)
+                .where(TicketActivityLog.ticket_key == key.upper())
+                .order_by(TicketActivityLog.created_at.desc())
+                .limit(limit)
+            ).scalars()
+        )
+        return [e.to_dict() for e in entries]
+
+
+@app.post("/api/tickets/{key}/spawn", status_code=201)
+async def api_spawn_from_template(request: Request, key: str, body: dict = None):
+    """Spawn a new ticket by copying a template ticket.
+
+    Creates a copy of the given ticket with all standard fields cloned,
+    ``is_template`` reset to 0, and status reset to ``backlog``.
+
+    Args:
+        key: Key of the template ticket to copy.
+        body: Optional dict with ``title`` override.
+
+    Returns:
+        The newly created ticket dict.
+
+    Raises:
+        HTTPException: 404 if ticket not found, 422 if ticket is not a template.
+    """
+    from ..db import Ticket as _Ticket
+    template = _svc.get(key)
+    if not template:
+        raise HTTPException(status_code=404, detail=f"Ticket {key} not found")
+    if not template.is_template:
+        raise HTTPException(status_code=422, detail=f"Ticket {key} is not marked as a template")
+
+    override_title = (body or {}).get("title", "")
+    new_title = override_title.strip() if override_title.strip() else f"[Copy] {template.title}"
+
+    ticket = _svc.create(
+        TicketCreate(
+            title=new_title,
+            description=template.description or "",
+            ticket_type=TicketType(template.ticket_type),
+            priority=Priority(template.priority),
+            assignee="",
+            sprint=template.sprint or "",
+            project=template.project or "",
+            story_points=template.story_points,
+            role=Role(template.role) if template.role else None,
+            acceptance_criteria=template.acceptance_criteria or "",
+            dev_checklist=template.dev_checklist or [],
+            qa_notes=template.qa_notes or "",
+            test_cases=template.test_cases or [],
+            test_plan=template.test_plan or "",
+            custom_data=template.custom_data,
+        )
+    )
+    _log_activity(ticket.key, _get_actor(request), "created", new_value=f"spawned from template {key}")
+    global _board_cache
+    _board_cache.clear()
+    return ticket.to_dict()
 
 
 @app.delete("/api/tickets/{key}/time/{entry_id}", status_code=204)
@@ -1292,7 +1469,7 @@ async def api_subtasks_list(key: str):
 
 
 @app.post("/api/tickets/{key}/subtasks", status_code=201)
-async def api_subtasks_create(key: str, body: SubtaskCreateRequest):
+async def api_subtasks_create(request: Request, key: str, body: SubtaskCreateRequest):
     """Create a subtask under the given parent ticket."""
     from ..db import Ticket as _Ticket
 
@@ -1321,7 +1498,10 @@ async def api_subtasks_create(key: str, body: SubtaskCreateRequest):
         t.parent_key = key.upper()
         session.flush()
         session.refresh(t)
-        return t.to_dict()
+        result = t.to_dict()
+
+    _log_activity(key, _get_actor(request), "subtask_added", new_value=ticket.key)
+    return result
 
 
 @app.patch("/api/tickets/{key}/parent")

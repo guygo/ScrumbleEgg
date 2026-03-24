@@ -1057,3 +1057,215 @@ class TestNoConsoleErrors:
             cards.first.click()
             page.wait_for_timeout(800)
         assert errors == [], f"Console errors in detail panel: {errors}"
+
+
+# ── Test: Activity log ────────────────────────────────────────────────────────
+
+class TestActivityLog:
+    """Verify the activity log timeline in the ticket detail panel."""
+
+    def _open_ticket_detail(self, page: Page) -> None:
+        """Create a ticket via API and open its detail panel via Alpine.
+
+        Creates via API (not the form) to get the key immediately, then calls
+        Alpine.$data().openDetail() directly — bypassing the board LIMIT-100
+        entirely so the test never depends on the card appearing in the board DOM.
+        """
+        import json as _json
+        title = unique("actlog")
+        resp = page.request.post(
+            f"{BASE_URL}/api/tickets",
+            headers={"Content-Type": "application/json"},
+            data=_json.dumps({"title": title, "ticket_type": "task", "priority": "medium"}),
+        )
+        assert resp.status == 201, f"Ticket creation failed: {resp.status}"
+        key = resp.json()["key"]
+        # Call Alpine's public API to open the detail panel for this specific ticket
+        page.evaluate(
+            f"Alpine.$data(document.querySelector('[x-data]')).openDetail({{key: '{key}'}})"
+        )
+        page.wait_for_selector("p:has-text('Activity')", state="visible", timeout=6000)
+        # Let loadActivityLog() fetch complete
+        page.wait_for_timeout(600)
+
+    def test_activity_section_visible(self, page: Page):
+        """Activity section header renders inside the detail panel."""
+        self._open_ticket_detail(page)
+        expect(page.locator("p:has-text('Activity')").first).to_be_visible()
+
+    def test_created_entry_appears_on_open(self, page: Page):
+        """Opening a freshly created ticket shows a 'Ticket created' entry."""
+        self._open_ticket_detail(page)
+        page.wait_for_selector("text=Ticket created", state="visible", timeout=5000)
+        expect(page.locator("text=Ticket created").first).to_be_visible()
+
+    def test_status_change_is_logged(self, page: Page):
+        """Moving a ticket's status via the detail panel adds a status_changed entry."""
+        self._open_ticket_detail(page)
+        # The status <select> is inside the scrollable panel but select_option()
+        # works via JS value-setting, so no viewport check needed.
+        status_select = page.locator("select.bg-transparent.text-n100").first
+        status_select.select_option("in_progress")
+        # activityLabel renders "Status → in progress" scoped to the activity section.
+        # Rely solely on the expect() timeout — the intermediate wait_for_selector("text=Status")
+        # would resolve immediately against the property label and give false confidence.
+        activity_section = page.locator("div.px-5.pb-5.border-t.border-n700:has(p:has-text('Activity'))")
+        expect(activity_section.locator("text=in progress").first).to_be_visible(timeout=5000)
+
+    def test_comment_added_is_logged(self, page: Page):
+        """Posting a comment adds a 'Comment added' entry to the activity log."""
+        self._open_ticket_detail(page)
+        textarea = page.locator("textarea[x-model='commentBody']")
+        textarea.fill(unique("actlog-comment"))
+        # Post comment button is in the scroll container — use evaluate()
+        page.locator("button:has-text('Post comment')").evaluate("el => el.click()")
+        expect(textarea).to_have_value("", timeout=5000)
+        # activityLabel("comment_added") → "Comment added"
+        page.wait_for_selector("text=Comment added", state="visible", timeout=5000)
+        expect(page.locator("text=Comment added").first).to_be_visible()
+
+    def test_time_logged_is_recorded_in_activity(self, page: Page):
+        """Logging time adds a 'Time logged:' entry to the activity log."""
+        self._open_ticket_detail(page)
+        page.locator("button:has-text('+ Log')").evaluate("el => el.click()")
+        page.wait_for_selector("input[x-model='timeForm.note']", state="visible", timeout=3000)
+        page.locator("input[placeholder='Minutes']").fill("45")
+        page.locator("div[x-show='timeFormOpen']:visible button:has-text('Log')").evaluate(
+            "el => el.click()"
+        )
+        # activityLabel("time_logged") → "Time logged: 45m"
+        # "Time logged:" with colon distinguishes it from the "Time logged" section header
+        page.wait_for_selector("text=Time logged:", state="visible", timeout=5000)
+        expect(page.locator("text=Time logged:").first).to_be_visible()
+
+    def test_subtask_added_is_logged(self, page: Page):
+        """Creating a subtask adds a 'Subtask SBE-N added' entry."""
+        self._open_ticket_detail(page)
+        page.locator("button:has-text('+ Add')").first.evaluate("el => el.click()")
+        page.wait_for_selector("input[x-model='subtaskForm.title']", state="visible", timeout=3000)
+        page.locator("input[x-model='subtaskForm.title']").fill(unique("sub"))
+        page.locator("div[x-show='subtaskFormOpen']:visible button:has-text('Create')").evaluate(
+            "el => el.click()"
+        )
+        page.wait_for_timeout(500)
+        # activityLabel("subtask_added") → "Subtask <SBE-N> added"
+        page.wait_for_selector("text=Subtask SBE-", state="visible", timeout=5000)
+        activity_section = page.locator("div.px-5.pb-5.border-t.border-n700:has(p:has-text('Activity'))")
+        expect(activity_section.locator("text=Subtask SBE-").first).to_be_visible()
+
+    def test_actor_name_shown_in_entry(self, page: Page):
+        """Each activity entry displays the actor who made the change."""
+        self._open_ticket_detail(page)
+        page.wait_for_selector("text=Ticket created", state="visible", timeout=5000)
+        # Actor span has class "text-n500 font-medium" (distinct from the label's
+        # hl() spans which use "text-n200 font-medium") — must target specifically
+        # to avoid matching field-value highlights instead of the actor name.
+        activity_section = page.locator("div.px-5.pb-5.border-t.border-n700:has(p:has-text('Activity'))")
+        actor_span = activity_section.locator("span.text-n500.font-medium").first
+        expect(actor_span).to_be_visible(timeout=5000)
+        actor_text = actor_span.inner_text()
+        assert actor_text.strip(), "Actor name must not be empty in activity entry"
+
+    def test_api_activity_endpoint_returns_created_entry(self, page: Page):
+        """GET /api/tickets/{key}/activity returns the 'created' entry immediately after creation."""
+        resp = page.request.post(
+            f"{BASE_URL}/api/tickets",
+            headers={"Content-Type": "application/json"},
+            data='{"title":"API actlog test","ticket_type":"task","priority":"medium"}',
+        )
+        assert resp.status == 201, f"Ticket creation failed: {resp.status}"
+        key = resp.json()["key"]
+
+        activity = page.request.get(f"{BASE_URL}/api/tickets/{key}/activity")
+        assert activity.status == 200
+        entries = activity.json()
+        assert isinstance(entries, list), "Activity endpoint must return a list"
+        assert len(entries) >= 1, "Expected at least one entry after creation"
+        actions = [e["action"] for e in entries]
+        assert "created" in actions, f"'created' entry missing from: {actions}"
+
+    def test_api_logs_status_change(self, page: Page):
+        """POST /api/tickets/{key}/move is recorded in the activity API."""
+        resp = page.request.post(
+            f"{BASE_URL}/api/tickets",
+            headers={"Content-Type": "application/json"},
+            data='{"title":"API status-log test","ticket_type":"task","priority":"medium"}',
+        )
+        assert resp.status == 201
+        key = resp.json()["key"]
+
+        move = page.request.post(
+            f"{BASE_URL}/api/tickets/{key}/move",
+            headers={"Content-Type": "application/json"},
+            data='{"status":"in_progress"}',
+        )
+        assert move.status == 200
+
+        activity = page.request.get(f"{BASE_URL}/api/tickets/{key}/activity").json()
+        status_entry = next((e for e in activity if e["action"] == "status_changed"), None)
+        assert status_entry is not None, f"No 'status_changed' entry in: {[e['action'] for e in activity]}"
+        assert status_entry["new_value"] == "in_progress"
+        assert status_entry["old_value"] == "backlog"
+        assert status_entry["field"] == "status"
+
+    def test_api_logs_comment(self, page: Page):
+        """POST /api/tickets/{key}/comments adds a comment_added entry."""
+        resp = page.request.post(
+            f"{BASE_URL}/api/tickets",
+            headers={"Content-Type": "application/json"},
+            data='{"title":"API comment-log test","ticket_type":"task","priority":"medium"}',
+        )
+        assert resp.status == 201
+        key = resp.json()["key"]
+
+        comment = page.request.post(
+            f"{BASE_URL}/api/tickets/{key}/comments",
+            headers={"Content-Type": "application/json"},
+            data='{"body":"hello from test","author":"tester"}',
+        )
+        assert comment.status == 201
+
+        activity = page.request.get(f"{BASE_URL}/api/tickets/{key}/activity").json()
+        comment_entry = next((e for e in activity if e["action"] == "comment_added"), None)
+        assert comment_entry is not None, "Expected 'comment_added' entry in activity log"
+        assert "hello from test" in (comment_entry["new_value"] or "")
+
+    def test_api_logs_field_change(self, page: Page):
+        """PATCH /api/tickets/{key} records changed fields individually."""
+        resp = page.request.post(
+            f"{BASE_URL}/api/tickets",
+            headers={"Content-Type": "application/json"},
+            data='{"title":"API field-log test","ticket_type":"task","priority":"medium"}',
+        )
+        assert resp.status == 201
+        key = resp.json()["key"]
+
+        patch = page.request.patch(
+            f"{BASE_URL}/api/tickets/{key}",
+            headers={"Content-Type": "application/json"},
+            data='{"priority":"high"}',
+        )
+        assert patch.status == 200
+
+        activity = page.request.get(f"{BASE_URL}/api/tickets/{key}/activity").json()
+        field_entry = next(
+            (e for e in activity if e["action"] == "field_changed" and e["field"] == "priority"),
+            None,
+        )
+        assert field_entry is not None, "Expected 'field_changed' entry for priority"
+        assert field_entry["old_value"] == "medium"
+        assert field_entry["new_value"] == "high"
+
+    def test_activity_api_404_for_unknown_ticket(self, page: Page):
+        """GET /api/tickets/NOTREAL/activity returns 404."""
+        resp = page.request.get(f"{BASE_URL}/api/tickets/NOTREAL-9999/activity")
+        assert resp.status == 404
+
+    def test_no_console_errors_in_activity_section(self, page: Page):
+        """Viewing the activity log produces no JavaScript console errors."""
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        self._open_ticket_detail(page)
+        page.wait_for_timeout(800)
+        assert errors == [], f"Console errors while viewing activity log: {errors}"
