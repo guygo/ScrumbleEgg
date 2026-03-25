@@ -43,7 +43,8 @@
     const dateIdx = {};
     dates.forEach((d, i) => dateIdx[d] = i);
 
-    const maxVal = Math.max(...ideal.map(p => p.value), 1);
+    const actualVals = snaps.map(s => this.mode === 'points' ? s.remaining_points : s.remaining_tickets);
+    const maxVal = Math.max(...ideal.map(p => p.value), ...actualVals, 1);
 
     const toX = idx => padL + (idx / Math.max(n - 1, 1)) * iW;
     const toY = v  => padT + (1 - Math.max(v, 0) / maxVal) * iH;
