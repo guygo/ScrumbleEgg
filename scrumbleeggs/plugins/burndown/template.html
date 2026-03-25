@@ -28,8 +28,25 @@
   /* ── chart computation ── */
   get chart() {
     if (!this.burndown) return null;
-    const ideal = this.mode === 'points' ? this.burndown.ideal_points : this.burndown.ideal_tickets;
     const snaps = this.burndown.snapshots;
+
+    // Use the highest recorded total from snapshots so the ideal line
+    // starts at the same level as the actual data (not just the live ticket count).
+    const snapTotal = snaps.length
+      ? Math.max(...snaps.map(s => this.mode === 'points' ? s.total_points : s.total_tickets))
+      : (this.mode === 'points' ? this.burndown.total_points : this.burndown.total_tickets);
+
+    // Rebuild ideal line from start_date → end_date using snapTotal
+    const buildIdeal = (total) => {
+      const start = new Date(this.burndown.start_date);
+      const end   = new Date(this.burndown.end_date);
+      const days  = Math.max(Math.round((end - start) / 86400000), 1);
+      return Array.from({length: days + 1}, (_, i) => {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        return { date: d.toISOString().slice(0, 10), value: +(total * (1 - i / days)).toFixed(2) };
+      });
+    };
+    const ideal = buildIdeal(snapTotal);
 
     const W = 760, H = 280, padL = 46, padR = 16, padT = 16, padB = 36;
     const iW = W - padL - padR, iH = H - padT - padB;
