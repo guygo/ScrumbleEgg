@@ -1,0 +1,266 @@
+<div x-data="{
+  sprints: [], selectedSprint: null, burndown: null, loading: false, mode: 'points',
+
+  async init() {
+    await this.loadSprints();
+    window.addEventListener('sbe:plugin:burndown', () => this.loadSprints());
+  },
+
+  async loadSprints() {
+    this.loading = true;
+    const r = await fetch('/api/plugins/burndown/sprints');
+    this.sprints = await r.json();
+    this.loading = false;
+    if (this.sprints.length && !this.selectedSprint) {
+      await this.selectSprint(this.sprints[0]);
+    }
+  },
+
+  async selectSprint(sprint) {
+    this.selectedSprint = sprint;
+    this.burndown = null;
+    this.loading = true;
+    const r = await fetch('/api/plugins/burndown/sprints/' + sprint.id + '/burndown');
+    this.burndown = await r.json();
+    this.loading = false;
+  },
+
+  /* ── chart computation ── */
+  get chart() {
+    if (!this.burndown) return null;
+    const ideal = this.mode === 'points' ? this.burndown.ideal_points : this.burndown.ideal_tickets;
+    const snaps = this.burndown.snapshots;
+
+    const W = 760, H = 280, padL = 46, padR = 16, padT = 16, padB = 36;
+    const iW = W - padL - padR, iH = H - padT - padB;
+
+    // Collect all dates across ideal and snapshots
+    const dateSet = new Set(ideal.map(p => p.date));
+    snaps.forEach(s => dateSet.add(s.date));
+    const dates = [...dateSet].sort();
+    const n = dates.length;
+
+    const dateIdx = {};
+    dates.forEach((d, i) => dateIdx[d] = i);
+
+    const maxVal = Math.max(...ideal.map(p => p.value), 1);
+
+    const toX = idx => padL + (idx / Math.max(n - 1, 1)) * iW;
+    const toY = v  => padT + (1 - Math.max(v, 0) / maxVal) * iH;
+
+    const polyPts = arr =>
+      arr.map(p => {
+        const i = dateIdx[p.date];
+        return i !== undefined ? toX(i) + ',' + toY(p.value) : null;
+      }).filter(Boolean).join(' ');
+
+    const actualArr = snaps.map(s => ({
+      date: s.date,
+      value: this.mode === 'points' ? s.remaining_points : s.remaining_tickets,
+    }));
+
+    const today = new Date().toISOString().slice(0, 10);
+    const todayIdx = dateIdx[today];
+    const todayX = todayIdx !== undefined ? toX(todayIdx) : null;
+
+    // Y ticks
+    const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+      label: Math.round(maxVal * (1 - f)),
+      y: toY(maxVal * (1 - f)),
+    }));
+
+    // X ticks — up to 6 labels
+    const step = Math.max(1, Math.floor(n / 6));
+    const xTicks = dates
+      .map((d, i) => ({ d, i }))
+      .filter(({i}) => i % step === 0 || i === n - 1)
+      .map(({d, i}) => ({ label: d.slice(5), x: toX(i) }));
+
+    // Dots for actual line
+    const dots = actualArr.map(p => {
+      const i = dateIdx[p.date];
+      return i !== undefined ? { cx: toX(i), cy: toY(p.value) } : null;
+    }).filter(Boolean);
+
+    return {
+      W, H, padL, padT, padB, iH,
+      idealPts: polyPts(ideal),
+      actualPts: polyPts(actualArr),
+      todayX,
+      yTicks, xTicks, dots,
+    };
+  },
+
+  get summary() {
+    if (!this.burndown) return null;
+    const snaps = this.burndown.snapshots;
+    const latest = snaps[snaps.length - 1];
+    const remaining = latest
+      ? (this.mode === 'points' ? latest.remaining_points : latest.remaining_tickets)
+      : null;
+    const total = this.mode === 'points' ? this.burndown.total_points : this.burndown.total_tickets;
+    return { total, remaining, unit: this.mode === 'points' ? 'pts' : 'tickets' };
+  },
+}" x-init="init()" class="flex-1 flex flex-col overflow-hidden text-sm">
+
+  <!-- Header bar -->
+  <div class="px-5 py-3 border-b border-n750 flex items-center justify-between flex-shrink-0" style="background:var(--n900)">
+    <div class="flex items-center gap-4">
+      <span class="text-[10px] font-semibold text-n500 uppercase tracking-widest">Burndown</span>
+      <select x-show="sprints.length" x-cloak
+              @change="selectSprint(sprints.find(s => s.id == $event.target.value))"
+              class="bg-n800 border border-n700 text-n200 text-xs rounded px-2 py-1 focus:outline-none focus:border-acc">
+        <template x-for="sp in sprints" :key="sp.id">
+          <option :value="sp.id" :selected="selectedSprint && selectedSprint.id === sp.id" x-text="sp.name"></option>
+        </template>
+      </select>
+    </div>
+    <div class="flex items-center gap-1 bg-n800 border border-n700 rounded-lg p-0.5">
+      <button @click="mode='points'"
+              :class="mode==='points' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="px-3 py-0.5 rounded-md text-xs font-medium transition-all">Points</button>
+      <button @click="mode='tickets'"
+              :class="mode==='tickets' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="px-3 py-0.5 rounded-md text-xs font-medium transition-all">Tickets</button>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="flex-1 overflow-y-auto p-6">
+
+    <template x-if="loading">
+      <div class="flex items-center justify-center h-48 text-n600 text-xs">Loading…</div>
+    </template>
+
+    <template x-if="!loading && sprints.length === 0">
+      <div class="flex items-center justify-center h-48 text-n600 text-xs text-center leading-relaxed">
+        No sprints found.<br>Create a sprint in Planning first.
+      </div>
+    </template>
+
+    <template x-if="!loading && burndown && chart">
+      <div class="space-y-5">
+
+        <!-- Legend + summary -->
+        <div class="flex items-center gap-6 text-[11px]">
+          <div class="flex items-center gap-2">
+            <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--n600)" stroke-width="1.5" stroke-dasharray="4,3"/></svg>
+            <span class="text-n500">Ideal</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--acc)" stroke-width="2" stroke-linecap="round"/></svg>
+            <span class="text-n400">Actual</span>
+          </div>
+          <div class="w-px h-3 bg-n700"></div>
+          <template x-if="summary">
+            <span class="text-n500">
+              Total <span class="text-n200 font-mono font-semibold" x-text="summary.total + ' ' + summary.unit"></span>
+              <span x-show="summary.remaining !== null">
+                · Remaining <span class="font-mono font-semibold"
+                  :class="summary.remaining <= 0 ? 'text-g400' : 'text-acc'"
+                  x-text="summary.remaining + ' ' + summary.unit"></span>
+              </span>
+            </span>
+          </template>
+        </div>
+
+        <!-- Chart -->
+        <div class="rounded-xl border border-n750 overflow-hidden p-2" style="background:var(--n900)">
+          <svg :viewBox="'0 0 ' + chart.W + ' ' + chart.H" class="w-full h-auto" style="max-height:300px">
+
+            <!-- Grid + Y labels -->
+            <template x-for="t in chart.yTicks" :key="t.label">
+              <g>
+                <line :x1="chart.padL" :y1="t.y" :x2="chart.W - 16" :y2="t.y"
+                      stroke="var(--n750)" stroke-width="1"/>
+                <text :x="chart.padL - 6" :y="t.y + 4"
+                      text-anchor="end" fill="var(--n600)" font-size="10" x-text="t.label"></text>
+              </g>
+            </template>
+
+            <!-- X labels -->
+            <template x-for="t in chart.xTicks" :key="t.label">
+              <text :x="t.x" :y="chart.H - chart.padB + 14"
+                    text-anchor="middle" fill="var(--n600)" font-size="10" x-text="t.label"></text>
+            </template>
+
+            <!-- Today marker -->
+            <template x-if="chart.todayX !== null">
+              <g>
+                <line :x1="chart.todayX" :y1="chart.padT"
+                      :x2="chart.todayX" :y2="chart.H - chart.padB"
+                      stroke="var(--n600)" stroke-width="1" stroke-dasharray="3,3"/>
+                <text :x="chart.todayX + 4" :y="chart.padT + 10"
+                      fill="var(--n600)" font-size="9">today</text>
+              </g>
+            </template>
+
+            <!-- Ideal line -->
+            <polyline :points="chart.idealPts"
+                      fill="none" stroke="var(--n600)" stroke-width="1.5"
+                      stroke-dasharray="5,4" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- Actual line -->
+            <polyline :points="chart.actualPts"
+                      fill="none" stroke="var(--acc)" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- Actual dots -->
+            <template x-for="(dot, i) in chart.dots" :key="i">
+              <circle :cx="dot.cx" :cy="dot.cy"
+                      r="3.5" fill="var(--acc)" stroke="var(--n900)" stroke-width="2"/>
+            </template>
+
+            <!-- Axes -->
+            <line :x1="chart.padL" :y1="chart.padT"
+                  :x2="chart.padL" :y2="chart.H - chart.padB"
+                  stroke="var(--n700)" stroke-width="1"/>
+            <line :x1="chart.padL" :y1="chart.H - chart.padB"
+                  :x2="chart.W - 16" :y2="chart.H - chart.padB"
+                  stroke="var(--n700)" stroke-width="1"/>
+          </svg>
+        </div>
+
+        <!-- Snapshot history table -->
+        <template x-if="burndown.snapshots.length > 0">
+          <div class="rounded-xl border border-n750 overflow-hidden" style="background:var(--n900)">
+            <div class="px-4 py-2.5 border-b border-n750">
+              <span class="text-[10px] font-semibold text-n500 uppercase tracking-widest">Daily Snapshots</span>
+            </div>
+            <table class="w-full border-collapse">
+              <thead style="background:var(--n850)">
+                <tr class="border-b border-n750">
+                  <th class="text-left px-4 py-2 text-[10px] font-semibold text-n500 uppercase tracking-wider">Date</th>
+                  <th class="text-right px-4 py-2 text-[10px] font-semibold text-n500 uppercase tracking-wider">Remaining pts</th>
+                  <th class="text-right px-4 py-2 text-[10px] font-semibold text-n500 uppercase tracking-wider">Remaining tickets</th>
+                  <th class="text-right px-4 py-2 text-[10px] font-semibold text-n500 uppercase tracking-wider">Total pts</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="snap in [...burndown.snapshots].reverse()" :key="snap.id">
+                  <tr class="border-b border-n800 hover:bg-n800/40 transition-colors">
+                    <td class="px-4 py-2 text-xs text-n300 font-mono" x-text="snap.date"></td>
+                    <td class="px-4 py-2 text-xs font-mono tabular-nums text-right"
+                        :class="snap.remaining_points <= 0 ? 'text-g400' : 'text-n200'"
+                        x-text="snap.remaining_points"></td>
+                    <td class="px-4 py-2 text-xs text-n200 font-mono tabular-nums text-right" x-text="snap.remaining_tickets"></td>
+                    <td class="px-4 py-2 text-xs text-n500 font-mono tabular-nums text-right" x-text="snap.total_points"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+
+        <template x-if="burndown.snapshots.length === 0">
+          <div class="rounded-xl border border-n750 p-8 text-center text-n600 text-xs" style="background:var(--n900)">
+            No snapshot history yet — the first snapshot was just recorded for today.
+            Come back tomorrow to see the burndown trend.
+          </div>
+        </template>
+
+      </div>
+    </template>
+
+  </div>
+</div>
