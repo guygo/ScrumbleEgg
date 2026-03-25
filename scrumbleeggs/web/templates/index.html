@@ -1890,7 +1890,17 @@
                   <!-- Quick assign -->
                 <button @click.stop="openQuickAssign($event, ticket.key)"
                         class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-n600 hover:text-n100"
-                        title="Quick assign"><span x-html="avatar(ticket.assignee||'',12)"></span></button>
+                        title="Assign">
+                  <template x-if="ticket.assignee">
+                    <span x-html="avatar(ticket.assignee, 12)"></span>
+                  </template>
+                  <template x-if="!ticket.assignee">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                      <circle cx="8" cy="5.5" r="2.5"/>
+                      <path d="M2.5 13.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/>
+                    </svg>
+                  </template>
+                </button>
                 <button @click.stop="openDetail(ticket)"
                           class="card-action-btn bg-n700 border-n600 text-n300 hover:bg-n600 hover:text-n100"
                           title="Open detail">⋯</button>
