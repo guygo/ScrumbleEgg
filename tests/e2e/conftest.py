@@ -1,7 +1,9 @@
 """Playwright e2e test configuration."""
 import os
+import re
 
 import pytest
+import requests
 
 # When SBE_AUTH_DISABLED=1 the server injects a fake admin — no login needed.
 # When auth is enabled (default), we log in once per session via storage state.
@@ -51,3 +53,52 @@ def context(browser, auth_storage_state):
     ctx = browser.new_context(**kwargs)
     yield ctx
     ctx.close()
+
+
+# ---------------------------------------------------------------------------
+# Test-data cleanup — runs once at the end of the full test session
+# ---------------------------------------------------------------------------
+
+_TEST_PREFIXES = re.compile(
+    r"^(E2E-|Dup-|DupSprint|LoadSprint|API-Sprint)",
+    re.IGNORECASE,
+)
+
+
+def _cleanup_test_data() -> None:
+    """Delete all tickets, sprints, and projects created by e2e tests."""
+    session = requests.Session()
+    base = _BASE_URL
+
+    # --- tickets (search returns up to 500; loop until none remain) ---
+    for prefix in ("E2E-",):
+        while True:
+            r = session.get(f"{base}/api/search", params={"q": prefix, "limit": 200})
+            if not r.ok:
+                break
+            tickets = r.json() if isinstance(r.json(), list) else r.json().get("results", [])
+            if not tickets:
+                break
+            for t in tickets:
+                session.delete(f"{base}/api/tickets/{t['key']}")
+
+    # --- sprints ---
+    r = session.get(f"{base}/api/sprints")
+    if r.ok:
+        for s in r.json():
+            if _TEST_PREFIXES.match(s.get("name", "")):
+                session.delete(f"{base}/api/sprints/{s['id']}")
+
+    # --- projects ---
+    r = session.get(f"{base}/api/projects")
+    if r.ok:
+        for p in r.json():
+            if _TEST_PREFIXES.match(p.get("name", "")):
+                session.delete(f"{base}/api/projects/{p['id']}")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_data_after_session():
+    """Auto-run test-data cleanup after the entire e2e session completes."""
+    yield
+    _cleanup_test_data()

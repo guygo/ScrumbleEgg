@@ -1497,9 +1497,16 @@
         Projects
       </button>
 
+    </div>
+    </div><!-- end left scrollable (Board · List · Projects) -->
+
+    <!-- Planning, Roadmap, plugins — outside the overflow container so dropdowns aren't clipped -->
+    <div class="w-px h-4 bg-n700 flex-shrink-0"></div>
+    <div class="flex items-center gap-0.5 flex-shrink-0">
+
       <!-- Planning dropdown (Stories · Sprints · Team) -->
-      <div class="relative" x-data="{ open: false }">
-        <button @click="open=!open" @click.outside="open=false"
+      <div class="relative" x-data="{ open: false }" @click.outside="open=false">
+        <button @click="open=!open"
                 :class="['stories','sprints','workload'].includes(view) ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
                 class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
           <svg class="w-3 h-3" fill="none" viewBox="0 0 16 16">
@@ -1510,7 +1517,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
           </svg>
         </button>
-        <div x-show="open" x-cloak @click.outside="open=false"
+        <div x-show="open" x-cloak
              class="absolute top-8 left-0 bg-n850 border border-n700 rounded-xl shadow-2xl p-1.5 z-50 min-w-[140px] space-y-0.5">
           <button @click="switchView('stories'); open=false"
                   :class="view==='stories' ? 'bg-n700 text-n100' : 'text-n300 hover:bg-n800'"
@@ -1544,6 +1551,7 @@
           </button>
         </div>
       </div>
+
       <button @click="switchView('roadmap')"
               :class="view==='roadmap' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
               class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
@@ -1569,7 +1577,6 @@
       {% endif %}
 
     </div>
-    </div><!-- end left scrollable -->
 
     <!-- Right: action buttons — no overflow clipping so dropdowns render correctly -->
     <div class="flex items-center gap-2 flex-shrink-0">
