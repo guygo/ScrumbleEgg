@@ -28,6 +28,8 @@ Scrumbleeggs is a lightweight Jira-like project management tool built with FastA
 20. [Custom Fields](#custom-fields)
 21. [Keyboard Shortcuts](#keyboard-shortcuts)
 22. [Performance Dashboard](#performance-dashboard)
+23. [Plugin System](#plugin-system)
+24. [Test Planning Plugin](#test-planning-plugin)
 
 ---
 
@@ -157,7 +159,7 @@ Click the bookmark icon in the toolbar to save the current filter. Saved filters
 
 ## Sprints
 
-Navigate to the **Sprints** view from the sidebar. You can:
+Navigate to **Planning → Sprints** from the toolbar. You can:
 
 - Create a sprint with a name, goal, start date, and end date.
 - View sprint progress (completion %, story points done vs total).
@@ -166,7 +168,7 @@ Navigate to the **Sprints** view from the sidebar. You can:
 
 Click **View tickets** on a sprint to filter the board to that sprint.
 
-The **Roadmap** tab shows a Gantt-style bar chart of sprint timelines with a "today" marker.
+The **Roadmap** view shows a Gantt-style bar chart of sprint timelines with a "today" marker.
 
 ---
 
@@ -328,7 +330,7 @@ Click the **WIP** button in the toolbar to set work-in-progress limits per colum
 |---|---|
 | Green count | Under limit |
 | Amber count | At 80 % of limit |
-| Red pulsing count | Over limit |
+| Red pulsing count (bold) | Over limit — column gets a subtle red background tint |
 
 Limits are saved in `localStorage`.
 
@@ -341,7 +343,7 @@ Hover over any board card to reveal the action bar (top-right corner of the card
 | Button | Action |
 |---|---|
 | `→` | Move ticket to the next status |
-| Avatar icon | Open the **quick assign** dropdown — pick a user or unassign |
+| Person icon / Avatar | Open the **quick assign** dropdown — pick a user or unassign. Shows a person silhouette when unassigned, avatar initials when assigned. |
 | `⋯` | Open the full detail panel |
 
 ---
@@ -425,6 +427,106 @@ Navigate to `/perf` to open the live performance dashboard. It shows:
 - SQLAlchemy connection pool status.
 
 The dashboard polls automatically every few seconds.
+
+---
+
+## Plugin System
+
+Scrumbleeggs supports a lightweight plugin system. Plugins are Python sub-packages inside `scrumbleeggs/plugins/` that are auto-discovered at startup — no changes to the core app required.
+
+### Plugin structure
+
+```
+scrumbleeggs/plugins/
+└── my_plugin/
+    ├── manifest.json   ← id, name, version, nav label + icon
+    ├── __init__.py     ← exports router, configure(db), models list
+    ├── routes.py       ← FastAPI APIRouter
+    ├── models.py       ← SQLAlchemy ORM models
+    └── template.html   ← Alpine.js UI fragment (rendered inside the SPA)
+```
+
+### What a plugin gets
+
+- **Nav button** — automatically added to the toolbar with the icon and label from `manifest.json`. Highlighted when the plugin view is active.
+- **API routes** — mounted at `/api/plugins/<plugin_id>/...`, protected by the same session auth as the rest of the app.
+- **DB tables** — created automatically on startup (`CREATE TABLE IF NOT EXISTS`).
+- **UI view** — the HTML fragment in `template.html` is rendered server-side (Jinja2) inside a `<main x-show="view==='plugin_<id>'">` section of the SPA.
+
+### manifest.json format
+
+```json
+{
+  "id": "my_plugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "description": "What this plugin does.",
+  "nav": {
+    "label": "My Plugin",
+    "icon_svg": "<svg ...></svg>"
+  }
+}
+```
+
+### __init__.py contract
+
+```python
+from .routes import configure, router
+from .models import MyModel
+
+models = [MyModel]          # tables to create
+__all__ = ["router", "configure", "models"]
+```
+
+`configure(db)` is called by the loader to inject the `Database` instance before any routes are served.
+
+---
+
+## Test Planning Plugin
+
+The built-in **Test Planning** plugin (`plugins/test_plan`) adds a full test plan management view to Scrumbleeggs.
+
+Navigate to **Test Plans** in the toolbar.
+
+### Test plans
+
+A test plan groups related test cases, optionally linked to a sprint.
+
+| Field | Notes |
+|---|---|
+| Name | Required |
+| Sprint | Optional — links the plan to a sprint name |
+| Status | Draft / Active / Closed |
+
+### Test cases
+
+Each plan contains test cases with:
+
+| Field | Notes |
+|---|---|
+| Title | What is being tested |
+| Steps | Step-by-step instructions (plain text, newlines supported) |
+| Expected result | What a passing run looks like |
+| Linked ticket | Optional `SBE-XXX` key — links the case to a board ticket |
+| Result | Pending / Pass ✓ / Fail ✗ / Blocked ⚠ |
+
+### Progress tracking
+
+The plan header shows live counts (pass / fail / blocked / pending) and a green progress bar representing `% passed`.
+
+### Filtering cases
+
+Use the filter bar above the case table to view only cases with a specific result: All, Pending, Pass, Fail, or Blocked.
+
+### API
+
+| Method | Path | Description |
+|---|---|---|
+| `GET/POST` | `/api/plugins/test_plan/plans` | List / create test plans |
+| `GET/PATCH/DELETE` | `/api/plugins/test_plan/plans/{id}` | Get / update / delete a plan |
+| `GET/POST` | `/api/plugins/test_plan/plans/{id}/cases` | List / add test cases |
+| `PATCH/DELETE` | `/api/plugins/test_plan/plans/{id}/cases/{case_id}` | Update / delete a case |
+| `GET` | `/api/plugins/test_plan/plans/{id}/stats` | Pass/fail/blocked counts |
 
 ---
 
