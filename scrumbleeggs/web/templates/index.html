@@ -2173,13 +2173,22 @@
             </div>
           </div>
 
-          <!-- Ticket count -->
-          <div class="flex items-center gap-1.5 text-[11px] text-n600">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-            <span x-text="`${proj.ticket_count||0} issue${proj.ticket_count===1?'':'s'}`"></span>
+          <!-- Ticket count + add button -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5 text-[11px] text-n600">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              <span x-text="`${proj.ticket_count||0} issue${proj.ticket_count===1?'':'s'}`"></span>
+            </div>
+            <button @click.stop="openAssignModal('project', proj.name)"
+                    class="text-[11px] text-n500 hover:text-n200 transition-colors flex items-center gap-1 opacity-0 group-hover:opacity-100">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add tickets
+            </button>
           </div>
         </div>
       </template>
@@ -2246,6 +2255,13 @@
           <div class="flex items-center gap-2 mt-3 flex-wrap">
             <button @click="jqlRaw='sprint:&quot;'+sp.name+'&quot;'; applyJQL(); switchView('board')"
                     class="text-[11px] text-acc hover:underline">View tickets</button>
+            <button @click.stop="openAssignModal('sprint', sp.name)"
+                    class="text-[11px] text-n500 hover:text-n200 transition-colors flex items-center gap-1">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add tickets
+            </button>
             <button x-show="sp.status==='active'" @click="closeSprint(sp.id)"
                     class="text-[11px] text-n500 hover:text-y400 transition-colors">Close sprint</button>
             <button @click="deleteSprint(sp.id)"
@@ -2300,6 +2316,144 @@
           <span x-show="sprintFormLoading">Creating…</span>
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Assign Tickets Modal ── -->
+<div x-show="assignModal.open" x-cloak
+     class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]"
+     @keydown.escape.window="assignModal.open=false">
+  <div class="absolute inset-0 bg-black/60" @click="assignModal.open=false"></div>
+  <div class="relative flex flex-col bg-n850 border border-n700 rounded-2xl shadow-2xl w-full max-w-[520px] z-10"
+       style="max-height:80vh">
+
+    <!-- Header -->
+    <div class="px-5 pt-5 pb-4 border-b border-n750 flex-shrink-0">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-sm font-semibold text-n100">Add tickets</h2>
+          <p class="text-[11px] text-n500 mt-0.5">
+            <span x-text="assignModal.mode === 'sprint' ? 'Sprint' : 'Project'"></span>:
+            <span class="text-n300 font-medium" x-text="assignModal.targetName"></span>
+          </p>
+        </div>
+        <button @click="assignModal.open=false" class="p-1.5 text-n500 hover:text-n200 hover:bg-n700 rounded-md transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <!-- Search input -->
+      <div class="relative">
+        <svg class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-n500 pointer-events-none"
+             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+        </svg>
+        <input x-model="assignModal.query"
+               @input="assignModalSearch()"
+               @keydown.escape="assignModal.query=''; assignModal.results=[]"
+               placeholder="Search tickets by title, key, or assignee…"
+               class="w-full bg-n800 border border-n700 text-n200 text-xs rounded-lg pl-8 pr-3 py-2
+                      focus:outline-none focus:border-acc placeholder-n600"/>
+      </div>
+    </div>
+
+    <!-- Results / assigned list -->
+    <div class="flex-1 overflow-y-auto">
+
+      <!-- Search results -->
+      <template x-if="assignModal.query.trim()">
+        <div>
+          <div x-show="assignModal.loading" class="px-5 py-4 text-xs text-n600">Searching…</div>
+          <div x-show="!assignModal.loading && assignModal.results.length === 0"
+               class="px-5 py-4 text-xs text-n600">No tickets found.</div>
+          <template x-for="t in assignModal.results" :key="t.key">
+            <button @click="toggleAssign(t)"
+                    class="w-full flex items-center gap-3 px-5 py-3 hover:bg-n800 transition-colors text-left border-b border-n750/50">
+              <!-- Checkbox -->
+              <div class="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-colors"
+                   :class="isAssigned(t.key) ? 'bg-acc border-acc' : 'border-n600 bg-transparent'">
+                <svg x-show="isAssigned(t.key)" class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+              <!-- Ticket info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-mono text-n500 flex-shrink-0" x-text="t.key"></span>
+                  <span class="text-xs text-n200 truncate font-medium" x-text="t.title"></span>
+                </div>
+                <div class="flex items-center gap-2 mt-0.5 text-[10px] text-n600">
+                  <span x-show="t.assignee" x-text="t.assignee"></span>
+                  <span x-show="t.sprint" class="text-n700">·</span>
+                  <span x-show="t.sprint" x-text="'sprint: ' + t.sprint" class="truncate"></span>
+                  <span x-show="t.project" class="text-n700">·</span>
+                  <span x-show="t.project" x-text="'proj: ' + t.project" class="truncate"></span>
+                </div>
+              </div>
+              <!-- Status badge -->
+              <span class="text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0"
+                    :class="{
+                      'bg-n800 border-n700 text-n500': t.status==='backlog',
+                      'bg-acc/10 border-acc/30 text-acc': t.status==='in_progress',
+                      'bg-y900 border-y400/30 text-y400': t.status==='review',
+                      'bg-g900 border-g400/30 text-g400': t.status==='done',
+                    }"
+                    x-text="t.status?.replace('_',' ')"></span>
+            </button>
+          </template>
+        </div>
+      </template>
+
+      <!-- Currently assigned tickets (shown when not searching) -->
+      <template x-if="!assignModal.query.trim()">
+        <div>
+          <div class="px-5 py-2.5 border-b border-n750">
+            <span class="text-[10px] font-semibold text-n500 uppercase tracking-widest"
+                  x-text="'Assigned (' + assignModal.assigned.length + ')'"></span>
+          </div>
+          <div x-show="assignModal.assigned.length === 0"
+               class="px-5 py-6 text-xs text-n600 text-center">
+            No tickets assigned yet — search above to add some.
+          </div>
+          <template x-for="t in assignModal.assigned" :key="t.key">
+            <div class="flex items-center gap-3 px-5 py-2.5 border-b border-n750/50 group">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-mono text-n500 flex-shrink-0" x-text="t.key"></span>
+                  <span class="text-xs text-n200 truncate" x-text="t.title"></span>
+                </div>
+              </div>
+              <span class="text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0"
+                    :class="{
+                      'bg-n800 border-n700 text-n500': t.status==='backlog',
+                      'bg-acc/10 border-acc/30 text-acc': t.status==='in_progress',
+                      'bg-y900 border-y400/30 text-y400': t.status==='review',
+                      'bg-g900 border-g400/30 text-g400': t.status==='done',
+                    }"
+                    x-text="t.status?.replace('_',' ')"></span>
+              <button @click="toggleAssign(t)"
+                      class="text-n700 hover:text-r400 transition-colors opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-n800">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-5 py-3 border-t border-n750 flex-shrink-0 flex items-center justify-between">
+      <span class="text-[11px] text-n600"
+            x-text="assignModal.assigned.length + ' ticket' + (assignModal.assigned.length===1?'':'s') + ' assigned'"></span>
+      <button @click="assignModal.open=false; loadBoard(); loadSprints(); loadProjects()"
+              class="px-4 py-1.5 text-xs font-semibold text-white bg-acc hover:bg-accH rounded-lg transition-colors">
+        Done
+      </button>
     </div>
   </div>
 </div>
@@ -2898,6 +3052,8 @@ function app() {
     editField: { name: '', required: false, options: [], newOption: '' },
     // Modals & overlays
     shortcutsOpen: false, exportMenuOpen: false, planningMenuOpen: false,
+    // Assign-tickets modal (sprint or project)
+    assignModal: { open: false, mode: '', targetName: '', query: '', results: [], assigned: [], loading: false, timer: null },
     searchOpen: false, searchQuery: '', searchResults: [], searchLoading: false, searchTimer: null,
     // Comments
     comments: [], commentsLoading: false, commentBody: '', commentAuthor: '',
@@ -3966,6 +4122,56 @@ function app() {
       });
       if (res.ok) { await this.loadSprints(); this.showToast('Sprint closed', 'success'); }
       else this.showToast('Failed to close sprint', 'error');
+    },
+
+    // ── Assign-tickets modal ─────────────────────────────────────────
+
+    openAssignModal(mode, targetName) {
+      this.assignModal = { open: true, mode, targetName, query: '', results: [], assigned: [], loading: false, timer: null };
+      this._loadAssigned();
+    },
+
+    async _loadAssigned() {
+      const m = this.assignModal;
+      const field = m.mode === 'sprint' ? 'sprint' : 'project';
+      const r = await fetch(`/api/search?q=${field}:"${encodeURIComponent(m.targetName)}"&limit=200`);
+      if (r.ok) { const d = await r.json(); m.assigned = d.tickets ?? d; }
+    },
+
+    assignModalSearch() {
+      const m = this.assignModal;
+      clearTimeout(m.timer);
+      if (!m.query.trim()) { m.results = []; return; }
+      m.timer = setTimeout(async () => {
+        m.loading = true;
+        const r = await fetch(`/api/search?q=${encodeURIComponent(m.query)}&limit=20`);
+        if (r.ok) { const d = await r.json(); m.results = d.tickets ?? d; }
+        else m.results = [];
+        m.loading = false;
+      }, 200);
+    },
+
+    isAssigned(key) {
+      return this.assignModal.assigned.some(t => t.key === key);
+    },
+
+    async toggleAssign(ticket) {
+      const m = this.assignModal;
+      const field = m.mode === 'sprint' ? 'sprint' : 'project';
+      const newVal = this.isAssigned(ticket.key) ? null : m.targetName;
+      const r = await fetch(`/api/tickets/${ticket.key}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ [field]: newVal }),
+      });
+      if (r.ok) {
+        if (newVal) {
+          m.assigned.push(ticket);
+        } else {
+          m.assigned = m.assigned.filter(t => t.key !== ticket.key);
+        }
+        // Update search results assignment display reactively
+        m.results = [...m.results];
+      }
     },
 
     // ── Search overlay ────────────────────────────────────────────────
