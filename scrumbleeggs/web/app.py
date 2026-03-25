@@ -26,6 +26,7 @@ from ..db import (
 )
 from ..tickets import TicketCreate, TicketService, TicketUpdate
 from ..metrics import MetricsCollector
+from ..plugins import load_plugins
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ _svc = TicketService(_db, prefix=_config.project_prefix)
 _auth = AuthService(_db)
 _auth.bootstrap_admin()          # no-op if users already exist
 _metrics = MetricsCollector(window=60)
+_plugins = load_plugins(app, _db)  # discover + mount plugin routers
 _stats_cache: dict = {}
 _board_cache: dict = {}
 _STATS_TTL = 5.0
@@ -532,7 +534,15 @@ async def deactivate_user(user_id: str, current_user: CurrentUser, _admin: Admin
 @app.get("/", response_class=HTMLResponse)
 async def board_page(request: Request):
     """Main board/list/projects/stories SPA."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    import json as _json
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "plugins": _plugins,
+        "plugins_json": _json.dumps([
+            {"id": p["id"], "name": p["name"], "nav": p["nav"]}
+            for p in _plugins
+        ]),
+    })
 
 
 @app.get("/tickets/{key}", response_class=HTMLResponse)

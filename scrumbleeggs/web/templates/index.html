@@ -1536,6 +1536,20 @@
         </svg>
         Roadmap
       </button>
+
+      <!-- ── Plugin nav buttons (server-rendered) ── -->
+      {% if plugins %}
+      <div class="w-px h-4 bg-n700 mx-1 flex-shrink-0"></div>
+      {% for plugin in plugins %}
+      <button @click="switchView('plugin_{{ plugin.id }}')"
+              :class="view==='plugin_{{ plugin.id }}' ? 'bg-n700 text-n100 shadow-sm' : 'text-n500 hover:text-n300'"
+              class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-all duration-100">
+        {{ plugin.nav.icon_svg | safe }}
+        {{ plugin.nav.label }}
+      </button>
+      {% endfor %}
+      {% endif %}
+
     </div>
     </div><!-- end left scrollable -->
 
@@ -2507,6 +2521,15 @@
   </div>
 </main>
 
+<!-- ══════════════════════════════════════════════
+     PLUGIN VIEWS (server-rendered per plugin)
+══════════════════════════════════════════════ -->
+{% for plugin in plugins %}
+<main x-show="view==='plugin_{{ plugin.id }}'" x-cloak class="flex-1 flex flex-col overflow-hidden">
+  {{ plugin.template | safe }}
+</main>
+{% endfor %}
+
 <!-- Bulk action bar -->
 <div x-show="bulkSelected.length > 0" x-cloak
      class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3
@@ -3406,6 +3429,10 @@ function app() {
       else if (v === 'workload') await this.loadWorkload();
       else if (v === 'roadmap') { await Promise.all([this.loadSprints(), this.loadRoadmap()]); }
       else if (v === 'users') await this.loadUsersView();
+      else if (v.startsWith('plugin_')) {
+        // Notify the plugin component to refresh its data
+        window.dispatchEvent(new CustomEvent('sbe:plugin:' + v.slice(7)));
+      }
       else await this.loadBoard();
     },
 
