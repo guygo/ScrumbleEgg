@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from ..auth import AuthError, AuthService, RateLimitError, User
 from ..config import get_config
 from ..db import (
-    CustomFieldDef, Database, FieldType, Priority, Project, ProjectStatus, Role,
+    CustomFieldDef, Database, FieldType, IssueTypeSchema, Priority, Project, ProjectStatus, Role,
     Sprint, TicketActivityLog, TicketComment, TicketRelation, TicketStatus, TicketType, TimeEntry,
 )
 from ..tickets import TicketCreate, TicketService, TicketUpdate
@@ -286,6 +286,9 @@ class CustomFieldCreateRequest(BaseModel):
     options: Optional[list] = None
     required: bool = False
     position: int = 0
+    icon: Optional[str] = None
+    description: Optional[str] = None
+    default_value: Optional[str] = None
 
 
 class CustomFieldUpdateRequest(BaseModel):
@@ -294,6 +297,23 @@ class CustomFieldUpdateRequest(BaseModel):
     options: Optional[list] = None
     required: Optional[bool] = None
     position: Optional[int] = None
+    icon: Optional[str] = None
+    description: Optional[str] = None
+    default_value: Optional[str] = None
+
+
+class IssueTypeSchemaCreateRequest(BaseModel):
+    name: str
+    icon: str = "task"
+    color: str = "#5e6ad2"
+    field_schema: Optional[list] = None
+
+
+class IssueTypeSchemaUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    field_schema: Optional[list] = None
 
 
 class CommentCreateRequest(BaseModel):
@@ -1291,6 +1311,9 @@ async def api_admin_fields_create(body: CustomFieldCreateRequest):
                 options=body.options,
                 required=1 if body.required else 0,
                 position=body.position,
+                icon=body.icon,
+                description=body.description,
+                default_value=body.default_value,
             )
             session.add(f)
             session.flush()
@@ -1316,6 +1339,12 @@ async def api_admin_fields_update(field_id: int, body: CustomFieldUpdateRequest)
             f.required = 1 if body.required else 0
         if body.position is not None:
             f.position = body.position
+        if body.icon is not None:
+            f.icon = body.icon or None
+        if body.description is not None:
+            f.description = body.description or None
+        if body.default_value is not None:
+            f.default_value = body.default_value or None
         return f.to_dict()
 
 
@@ -1326,6 +1355,70 @@ async def api_admin_fields_delete(field_id: int):
         if not f:
             raise HTTPException(status_code=404, detail="Field not found")
         session.delete(f)
+
+
+# ---------------------------------------------------------------------------
+# API — Admin: Issue Type Schemas
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/admin/issue-types")
+async def api_admin_issue_types_list():
+    """Return all issue type schemas ordered by name."""
+    with _db.session() as session:
+        types = list(
+            session.execute(
+                select(IssueTypeSchema).order_by(IssueTypeSchema.name)
+            ).scalars()
+        )
+        return [t.to_dict() for t in types]
+
+
+@app.post("/api/admin/issue-types", status_code=201)
+async def api_admin_issue_types_create(body: IssueTypeSchemaCreateRequest):
+    if not body.name.strip():
+        raise HTTPException(status_code=422, detail="Name cannot be empty")
+    with _db.session() as session:
+        from sqlalchemy.exc import IntegrityError
+        try:
+            it = IssueTypeSchema(
+                name=body.name.strip(),
+                icon=body.icon,
+                color=body.color,
+                field_schema=body.field_schema or [],
+            )
+            session.add(it)
+            session.flush()
+            session.refresh(it)
+            return it.to_dict()
+        except IntegrityError:
+            raise HTTPException(status_code=409, detail=f"Issue type '{body.name}' already exists")
+
+
+@app.patch("/api/admin/issue-types/{type_id}")
+async def api_admin_issue_types_update(type_id: int, body: IssueTypeSchemaUpdateRequest):
+    with _db.session() as session:
+        it = session.get(IssueTypeSchema, type_id)
+        if not it:
+            raise HTTPException(status_code=404, detail="Issue type not found")
+        if body.name is not None:
+            it.name = body.name.strip()
+        if body.icon is not None:
+            it.icon = body.icon
+        if body.color is not None:
+            it.color = body.color
+        if body.field_schema is not None:
+            it.field_schema = body.field_schema
+        return it.to_dict()
+
+
+@app.delete("/api/admin/issue-types/{type_id}", status_code=204)
+async def api_admin_issue_types_delete(type_id: int):
+    with _db.session() as session:
+        it = session.get(IssueTypeSchema, type_id)
+        if not it:
+            raise HTTPException(status_code=404, detail="Issue type not found")
+        session.delete(it)
 
 
 # ---------------------------------------------------------------------------

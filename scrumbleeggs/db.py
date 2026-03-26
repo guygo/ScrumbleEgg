@@ -161,9 +161,12 @@ class CustomFieldDef(Base):
     name = Column(String(200), nullable=False)
     key = Column(String(60), unique=True, nullable=False, index=True)
     field_type = Column(String(20), nullable=False, default=FieldType.TEXT)
-    options = Column(JSON, nullable=True)   # list[str] for select type
-    required = Column(Integer, default=0)   # 0=false, 1=true
-    position = Column(Integer, default=0)   # display order
+    options = Column(JSON, nullable=True)       # list[str] for select type
+    required = Column(Integer, default=0)       # 0=false, 1=true
+    position = Column(Integer, default=0)       # display order
+    icon = Column(String(50), nullable=True)    # emoji shown next to field label
+    description = Column(Text, nullable=True)   # tooltip / help text
+    default_value = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
 
     def to_dict(self) -> dict:
@@ -175,6 +178,34 @@ class CustomFieldDef(Base):
             "options": self.options,
             "required": bool(self.required),
             "position": self.position,
+            "icon": self.icon,
+            "description": self.description,
+            "default_value": self.default_value,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class IssueTypeSchema(Base):
+    """Admin-defined issue type with a per-type field schema."""
+
+    __tablename__ = "issue_type_schemas"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, unique=True)
+    icon = Column(String(50), nullable=False, default="task")
+    color = Column(String(20), nullable=False, default="#5e6ad2")
+    # list of FieldConfig dicts: {key, name, field_type, visible, required,
+    #                              default_value, description, position}
+    field_schema = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(_UTC))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "icon": self.icon,
+            "color": self.color,
+            "field_schema": self.field_schema or [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -506,6 +537,18 @@ class Database:
             ]:
                 try:
                     conn.execute(text(auth_sql))
+                    conn.commit()
+                except Exception:
+                    pass
+
+            # Enhanced custom field definitions
+            for sql in [
+                "ALTER TABLE custom_field_defs ADD COLUMN icon TEXT",
+                "ALTER TABLE custom_field_defs ADD COLUMN description TEXT",
+                "ALTER TABLE custom_field_defs ADD COLUMN default_value TEXT",
+            ]:
+                try:
+                    conn.execute(text(sql))
                     conn.commit()
                 except Exception:
                     pass
